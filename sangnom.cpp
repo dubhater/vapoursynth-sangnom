@@ -83,7 +83,7 @@ static inline __m128i simd_load_one_to_left(const T *ptr) {
                 return _mm_or_si128(shifted, andm);
             } else if (sizeof(T) == 2) {
                 auto mask = _mm_setr_epi16(0xFFFF, 00, 00, 00, 00, 00, 00, 00);
-                auto val = simd_load_si128<T, alignedLoad>(ptr);;
+                auto val = simd_load_si128<T, alignedLoad>(ptr);
                 auto shifted = _mm_slli_si128(val, 2);
                 auto unpck = _mm_unpacklo_epi16(val, val);
                 auto andm = _mm_and_si128(unpck, mask);
@@ -111,14 +111,14 @@ static inline __m128i simd_load_two_to_left(const T *ptr) {
         if (std::is_integral<T>::value) {
             if (sizeof(T) == 1) {
                 auto mask = _mm_setr_epi8(0xFF, 0xFF, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00);
-                auto val = simd_load_si128<T, alignedLoad>(ptr);;
+                auto val = simd_load_si128<T, alignedLoad>(ptr);
                 auto shifted = _mm_slli_si128(val, 2);
                 auto unpck = _mm_unpacklo_epi8(val, val);
                 auto andm = _mm_and_si128(unpck, mask);
                 return _mm_or_si128(shifted, andm);
             } else if (sizeof(T) == 2) {
                 auto mask = _mm_setr_epi16(0xFFFF, 0xFFFF, 00, 00, 00, 00, 00, 00);
-                auto val = simd_load_si128<T, alignedLoad>(ptr);;
+                auto val = simd_load_si128<T, alignedLoad>(ptr);
                 auto shifted = _mm_slli_si128(val, 4);
                 auto unpck = _mm_unpacklo_epi16(val, val);
                 auto andm = _mm_and_si128(unpck, mask);
@@ -146,7 +146,7 @@ static inline __m128i simd_load_three_to_left(const T *ptr) {
         if (std::is_integral<T>::value) {
             if (sizeof(T) == 1) {
                 auto mask = _mm_setr_epi8(0xFF, 0xFF, 0xFF, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00);
-                auto val = simd_load_si128<T, alignedLoad>(ptr);;
+                auto val = simd_load_si128<T, alignedLoad>(ptr);
                 auto shifted = _mm_slli_si128(val, 3);
                 auto unpck = _mm_unpacklo_epi8(val, val);
                 unpck = _mm_unpacklo_epi16(unpck, unpck);
@@ -154,7 +154,7 @@ static inline __m128i simd_load_three_to_left(const T *ptr) {
                 return _mm_or_si128(shifted, andm);
             } else if (sizeof(T) == 2) {
                 auto mask = _mm_setr_epi16(0xFFFF, 0xFFFF, 0xFFFF, 00, 00, 00, 00, 00);
-                auto val = simd_load_si128<T, alignedLoad>(ptr);;
+                auto val = simd_load_si128<T, alignedLoad>(ptr);
                 auto shifted = _mm_slli_si128(val, 6);
                 auto unpck = _mm_unpacklo_epi16(val, val);
                 unpck = _mm_unpacklo_epi32(unpck, unpck);
@@ -184,13 +184,13 @@ static inline __m128i simd_load_one_to_right(const T *ptr) {
         if (std::is_integral<T>::value) {
             if (sizeof(T) == 1) {
                 auto mask = _mm_set_epi8(0xFF, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00);
-                auto val = simd_load_si128<T, alignedLoad>(ptr);;
+                auto val = simd_load_si128<T, alignedLoad>(ptr);
                 auto shifted = _mm_srli_si128(val, 1);
                 auto andm = _mm_and_si128(val, mask);
                 return _mm_or_si128(shifted, andm);
             } else if (sizeof(T) == 2) {
                 auto mask = _mm_set_epi16(0xFFFF, 00, 00, 00, 00, 00, 00, 00);
-                auto val = simd_load_si128<T, alignedLoad>(ptr);;
+                auto val = simd_load_si128<T, alignedLoad>(ptr);
                 auto shifted = _mm_srli_si128(val, 2);
                 auto unpck = _mm_unpackhi_epi16(val, val);
                 auto andm = _mm_and_si128(unpck, mask);
@@ -218,14 +218,14 @@ static inline __m128i simd_load_two_to_right(const T *ptr) {
         if (std::is_integral<T>::value) {
             if (sizeof(T) == 1) {
                 auto mask = _mm_set_epi8(0xFF, 0xFF, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00);
-                auto val = simd_load_si128<T, alignedLoad>(ptr);;
+                auto val = simd_load_si128<T, alignedLoad>(ptr);
                 auto shifted = _mm_srli_si128(val, 2);
                 auto unpck = _mm_unpackhi_epi8(val, val);
                 auto andm = _mm_and_si128(unpck, mask);
                 return _mm_or_si128(shifted, andm);
             } else if (sizeof(T) == 2) {
                 auto mask = _mm_set_epi16(0xFFFF, 0xFFFF, 00, 00, 00, 00, 00, 00);
-                auto val = simd_load_si128<T, alignedLoad>(ptr);;
+                auto val = simd_load_si128<T, alignedLoad>(ptr);
                 auto shifted = _mm_srli_si128(val, 4);
                 auto unpck = _mm_unpackhi_epi16(val, val);
                 auto andm = _mm_and_si128(unpck, mask);
@@ -253,7 +253,7 @@ static inline __m128i simd_load_three_to_right(const T *ptr) {
         if (std::is_integral<T>::value) {
             if (sizeof(T) == 1) {
                 auto mask = _mm_set_epi8(0xFF, 0xFF, 0xFF, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00);
-                auto val = simd_load_si128<T, alignedLoad>(ptr);;
+                auto val = simd_load_si128<T, alignedLoad>(ptr);
                 auto shifted = _mm_srli_si128(val, 3);
                 auto unpck = _mm_unpackhi_epi8(val, val);
                 unpck = _mm_unpackhi_epi16(unpck, unpck);
@@ -261,7 +261,7 @@ static inline __m128i simd_load_three_to_right(const T *ptr) {
                 return _mm_or_si128(shifted, andm);
             } else if (sizeof(T) == 2) {
                 auto mask = _mm_set_epi16(0xFFFF, 0xFFFF, 0xFFFF, 00, 00, 00, 00, 00);
-                auto val = simd_load_si128<T, alignedLoad>(ptr);;
+                auto val = simd_load_si128<T, alignedLoad>(ptr);
                 auto shifted = _mm_srli_si128(val, 6);
                 auto unpck = _mm_unpackhi_epi16(val, val);
                 unpck = _mm_unpackhi_epi32(unpck, unpck);
