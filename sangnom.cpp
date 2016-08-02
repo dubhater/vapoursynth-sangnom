@@ -51,192 +51,189 @@ static inline int VapourSynthFieldBasedToSangNomOrder(int fieldbased)
     return SNOT_SFR_KT;
 }
 
-inline __m128i simd_load_si128(const uint8_t *ptr) {
-    return _mm_load_si128(reinterpret_cast<const __m128i*>(ptr));
-}
-
-inline __m128i simd_loadu_si128(const uint8_t *ptr) {
+template <typename T, bool aligned>
+static inline __m128i simd_load_si128(const T *ptr) {
+    if (aligned)
+        return _mm_load_si128(reinterpret_cast<const __m128i*>(ptr));
     return _mm_loadu_si128(reinterpret_cast<const __m128i*>(ptr));
 }
 
-inline void simd_store_si128(uint8_t *ptr, __m128i value) {
-    _mm_store_si128(reinterpret_cast<__m128i*>(ptr), value);
+template <typename T, bool aligned>
+static inline void simd_store_si128(T *ptr, __m128i val) {
+    if (aligned)
+        _mm_store_si128(reinterpret_cast<__m128i*>(ptr), val);
+    _mm_storeu_si128(reinterpret_cast<__m128i*>(ptr), val);
 }
 
-inline void simd_storeu_si128(uint8_t *ptr, __m128i value) {
-    _mm_storeu_si128(reinterpret_cast<__m128i*>(ptr), value);
-}
-
-
-template <bool isBorder, decltype(simd_load_si128) simd_load>
+template <bool isBorder, bool alignedLoad>
 static inline __m128i simd_load_one_to_left(const uint8_t *ptr) {
     if (isBorder) {
         auto mask = _mm_setr_epi8(0xFF, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00);
-        auto val = simd_load(ptr);
+        auto val = simd_load_si128<uint8_t, alignedLoad>(ptr);
         auto shifted = _mm_slli_si128(val, 1);
         auto andm = _mm_and_si128(val, mask);
         return _mm_or_si128(shifted, andm);
     } else {
-        return simd_loadu_si128(ptr - 1);
+        return simd_load_si128<uint8_t, false>(ptr - 1);
     }
 }
 
-template <bool isBorder, decltype(simd_load_si128) simd_load>
+template <bool isBorder, bool alignedLoad>
 static inline __m128i simd_load_two_to_left(const uint8_t *ptr) {
     if (isBorder) {
         auto mask = _mm_setr_epi8(0xFF, 0xFF, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00);
-        auto val = simd_load(ptr);
+        auto val = simd_load_si128<uint8_t, alignedLoad>(ptr);;
         auto shifted = _mm_slli_si128(val, 2);
         auto unpck = _mm_unpacklo_epi8(val, val);
         auto andm = _mm_and_si128(unpck, mask);
         return _mm_or_si128(shifted, andm);
     } else {
-        return simd_loadu_si128(ptr - 2);
+        return simd_load_si128<uint8_t, false>(ptr - 2);
     }
 }
 
-template <bool isBorder, decltype(simd_load_si128) simd_load>
+template <bool isBorder, bool alignedLoad>
 static inline __m128i simd_load_three_to_left(const uint8_t *ptr) {
     if (isBorder) {
         auto mask = _mm_setr_epi8(0xFF, 0xFF, 0xFF, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00);
-        auto val = simd_load(ptr);
+        auto val = simd_load_si128<uint8_t, alignedLoad>(ptr);;
         auto shifted = _mm_slli_si128(val, 3);
         auto unpck = _mm_unpacklo_epi8(val, val);
         unpck = _mm_unpacklo_epi16(unpck, unpck);
         auto andm = _mm_and_si128(unpck, mask);
         return _mm_or_si128(shifted, andm);
     } else {
-        return simd_loadu_si128(ptr - 3);
+        return simd_load_si128<uint8_t, false>(ptr - 3);
     }
 }
 
-template <bool isBorder, decltype(simd_load_si128) simd_load>
+template <bool isBorder, bool alignedLoad>
 static inline __m128i simd_load_one_epi16_to_left(const uint8_t *ptr) {
     if (isBorder) {
         auto mask = _mm_setr_epi16(0xFFFF, 00, 00, 00, 00, 00, 00, 00);
-        auto val = simd_load(ptr);
+        auto val = simd_load_si128<uint8_t, alignedLoad>(ptr);;
         auto shifted = _mm_slli_si128(val, 2);
         auto unpck = _mm_unpacklo_epi16(val, val);
         auto andm = _mm_and_si128(unpck, mask);
         return _mm_or_si128(shifted, andm);
     } else {
-        return simd_loadu_si128(ptr - 2);
+        return simd_load_si128<uint8_t, false>(ptr - 2);
     }
 }
 
-template <bool isBorder, decltype(simd_load_si128) simd_load>
+template <bool isBorder, bool alignedLoad>
 static inline __m128i simd_load_two_epi16_to_left(const uint8_t *ptr) {
     if (isBorder) {
         auto mask = _mm_setr_epi16(0xFFFF, 0xFFFF, 00, 00, 00, 00, 00, 00);
-        auto val = simd_load(ptr);
+        auto val = simd_load_si128<uint8_t, alignedLoad>(ptr);;
         auto shifted = _mm_slli_si128(val, 4);
         auto unpck = _mm_unpacklo_epi16(val, val);
         auto andm = _mm_and_si128(unpck, mask);
         return _mm_or_si128(shifted, andm);
     } else {
-        return simd_loadu_si128(ptr - 4);
+        return simd_load_si128<uint8_t, false>(ptr - 4);
     }
 }
 
-template <bool isBorder, decltype(simd_load_si128) simd_load>
+template <bool isBorder, bool alignedLoad>
 static inline __m128i simd_load_three_epi16_to_left(const uint8_t *ptr) {
     if (isBorder) {
         auto mask = _mm_setr_epi16(0xFFFF, 0xFFFF, 0xFFFF, 00, 00, 00, 00, 00);
-        auto val = simd_load(ptr);
+        auto val = simd_load_si128<uint8_t, alignedLoad>(ptr);;
         auto shifted = _mm_slli_si128(val, 6);
         auto unpck = _mm_unpacklo_epi16(val, val);
         unpck = _mm_unpacklo_epi32(unpck, unpck);
         auto andm = _mm_and_si128(unpck, mask);
         return _mm_or_si128(shifted, andm);
     } else {
-        return simd_loadu_si128(ptr - 6);
+        return simd_load_si128<uint8_t, false>(ptr - 6);
     }
 }
 
 //note the difference between set and setr for left and right loading
-template <bool isBorder, decltype(simd_load_si128) simd_load>
+template <bool isBorder, bool alignedLoad>
 static inline __m128i simd_load_one_to_right(const uint8_t *ptr) {
     if (isBorder) {
         auto mask = _mm_set_epi8(0xFF, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00);
-        auto val = simd_load(ptr);
+        auto val = simd_load_si128<uint8_t, alignedLoad>(ptr);;
         auto shifted = _mm_srli_si128(val, 1);
         auto andm = _mm_and_si128(val, mask);
         return _mm_or_si128(shifted, andm);
     } else {
-        return simd_loadu_si128(ptr + 1);
+        return simd_load_si128<uint8_t, false>(ptr + 1);
     }
 }
 
-template <bool isBorder, decltype(simd_load_si128) simd_load>
+template <bool isBorder, bool alignedLoad>
 static inline __m128i simd_load_two_to_right(const uint8_t *ptr) {
     if (isBorder) {
         auto mask = _mm_set_epi8(0xFF, 0xFF, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00);
-        auto val = simd_load(ptr);
+        auto val = simd_load_si128<uint8_t, alignedLoad>(ptr);;
         auto shifted = _mm_srli_si128(val, 2);
         auto unpck = _mm_unpackhi_epi8(val, val);
         auto andm = _mm_and_si128(unpck, mask);
         return _mm_or_si128(shifted, andm);
     } else {
-        return simd_loadu_si128(ptr + 2);
+        return simd_load_si128<uint8_t, false>(ptr + 2);
     }
 }
 
-template <bool isBorder, decltype(simd_load_si128) simd_load>
+template <bool isBorder, bool alignedLoad>
 static inline __m128i simd_load_three_to_right(const uint8_t *ptr) {
     if (isBorder) {
         auto mask = _mm_set_epi8(0xFF, 0xFF, 0xFF, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00, 00);
-        auto val = simd_load(ptr);
+        auto val = simd_load_si128<uint8_t, alignedLoad>(ptr);;
         auto shifted = _mm_srli_si128(val, 3);
         auto unpck = _mm_unpackhi_epi8(val, val);
         unpck = _mm_unpackhi_epi16(unpck, unpck);
         auto andm = _mm_and_si128(unpck, mask);
         return _mm_or_si128(shifted, andm);
     } else {
-        return simd_loadu_si128(ptr + 3);
+        return simd_load_si128<uint8_t, false>(ptr + 3);
     }
 }
 
-template <bool isBorder, decltype(simd_load_si128) simd_load>
+template <bool isBorder, bool alignedLoad>
 static inline __m128i simd_load_one_epi16_to_right(const uint8_t *ptr) {
     if (isBorder) {
         auto mask = _mm_set_epi16(0xFFFF, 00, 00, 00, 00, 00, 00, 00);
-        auto val = simd_load(ptr);
+        auto val = simd_load_si128<uint8_t, alignedLoad>(ptr);;
         auto shifted = _mm_srli_si128(val, 2);
         auto unpck = _mm_unpackhi_epi16(val, val);
         auto andm = _mm_and_si128(unpck, mask);
         return _mm_or_si128(shifted, andm);
     } else {
-        return simd_loadu_si128(ptr + 2);
+        return simd_load_si128<uint8_t, false>(ptr + 2);
     }
 }
 
 
-template <bool isBorder, decltype(simd_load_si128) simd_load>
+template <bool isBorder, bool alignedLoad>
 static inline __m128i simd_load_two_epi16_to_right(const uint8_t *ptr) {
     if (isBorder) {
         auto mask = _mm_set_epi16(0xFFFF, 0xFFFF, 00, 00, 00, 00, 00, 00);
-        auto val = simd_load(ptr);
+        auto val = simd_load_si128<uint8_t, alignedLoad>(ptr);;
         auto shifted = _mm_srli_si128(val, 4);
         auto unpck = _mm_unpackhi_epi16(val, val);
         auto andm = _mm_and_si128(unpck, mask);
         return _mm_or_si128(shifted, andm);
     } else {
-        return simd_loadu_si128(ptr + 4);
+        return simd_load_si128<uint8_t, false>(ptr + 4);
     }
 }
 
-template <bool isBorder, decltype(simd_load_si128) simd_load>
+template <bool isBorder, bool alignedLoad>
 static inline __m128i simd_load_three_epi16_to_right(const uint8_t *ptr) {
     if (isBorder) {
         auto mask = _mm_set_epi16(0xFFFF, 0xFFFF, 0xFFFF, 00, 00, 00, 00, 00);
-        auto val = simd_load(ptr);
+        auto val = simd_load_si128<uint8_t, alignedLoad>(ptr);;
         auto shifted = _mm_srli_si128(val, 6);
         auto unpck = _mm_unpackhi_epi16(val, val);
         unpck = _mm_unpackhi_epi32(unpck, unpck);
         auto andm = _mm_and_si128(unpck, mask);
         return _mm_or_si128(shifted, andm);
     } else {
-        return simd_loadu_si128(ptr + 6);
+        return simd_load_si128<uint8_t, false>(ptr + 6);
     }
 }
 
@@ -315,47 +312,47 @@ static inline __m128i blendAvgOnMinimalBuffer(const __m128i& a1, const __m128i& 
     return _mm_or_si128(avgPart, accPart);
 }
 
-template <BorderMode border, decltype(simd_load_si128) simd_load, decltype(simd_store_si128) simd_store>
+template <BorderMode border, bool alignedLoad, bool alignedStore>
 static inline void prepareBuffersLine(const uint8_t* srcp, const uint8_t *srcpn2, uint8_t* buffers[BUFFERS_COUNT], int bufferOffset, int width) {
 
     for (int x = 0; x < width; x += 16) {
 
-        auto cur_minus_3   = simd_load_three_to_left<border == BorderMode::LEFT, simd_load>(srcp + x);
-        auto cur_minus_2   = simd_load_two_to_left<border == BorderMode::LEFT, simd_load>(srcp + x);
-        auto cur_minus_1   = simd_load_one_to_left<border == BorderMode::LEFT, simd_load>(srcp + x);
-        auto cur           = simd_load(srcp + x);
-        auto cur_plus_1    = simd_load_one_to_right<border == BorderMode::RIGHT, simd_load>(srcp + x);
-        auto cur_plus_2    = simd_load_two_to_right<border == BorderMode::RIGHT, simd_load>(srcp + x);
-        auto cur_plus_3    = simd_load_three_to_right<border == BorderMode::RIGHT, simd_load>(srcp + x);
+        auto cur_minus_3   = simd_load_three_to_left<border == BorderMode::LEFT, alignedLoad>(srcp + x);
+        auto cur_minus_2   = simd_load_two_to_left<border == BorderMode::LEFT, alignedLoad>(srcp + x);
+        auto cur_minus_1   = simd_load_one_to_left<border == BorderMode::LEFT, alignedLoad>(srcp + x);
+        auto cur           = simd_load_si128<uint8_t, alignedLoad>(srcp + x);
+        auto cur_plus_1    = simd_load_one_to_right<border == BorderMode::RIGHT, alignedLoad>(srcp + x);
+        auto cur_plus_2    = simd_load_two_to_right<border == BorderMode::RIGHT, alignedLoad>(srcp + x);
+        auto cur_plus_3    = simd_load_three_to_right<border == BorderMode::RIGHT, alignedLoad>(srcp + x);
 
-        auto next_minus_3  = simd_load_three_to_left<border == BorderMode::LEFT, simd_load>(srcpn2 + x);
-        auto next_minus_2  = simd_load_two_to_left<border == BorderMode::LEFT, simd_load>(srcpn2 + x);
-        auto next_minus_1  = simd_load_one_to_left<border == BorderMode::LEFT, simd_load>(srcpn2 + x);
-        auto next          = simd_load(srcpn2 + x);
-        auto next_plus_1   = simd_load_one_to_right<border == BorderMode::RIGHT, simd_load>(srcpn2 + x);
-        auto next_plus_2   = simd_load_two_to_right<border == BorderMode::RIGHT, simd_load>(srcpn2 + x);
-        auto next_plus_3   = simd_load_three_to_right<border == BorderMode::RIGHT, simd_load>(srcpn2 + x);
+        auto next_minus_3  = simd_load_three_to_left<border == BorderMode::LEFT, alignedLoad>(srcpn2 + x);
+        auto next_minus_2  = simd_load_two_to_left<border == BorderMode::LEFT, alignedLoad>(srcpn2 + x);
+        auto next_minus_1  = simd_load_one_to_left<border == BorderMode::LEFT, alignedLoad>(srcpn2 + x);
+        auto next          = simd_load_si128<uint8_t, alignedLoad>(srcpn2 + x);
+        auto next_plus_1   = simd_load_one_to_right<border == BorderMode::RIGHT, alignedLoad>(srcpn2 + x);
+        auto next_plus_2   = simd_load_two_to_right<border == BorderMode::RIGHT, alignedLoad>(srcpn2 + x);
+        auto next_plus_3   = simd_load_three_to_right<border == BorderMode::RIGHT, alignedLoad>(srcpn2 + x);
 
         auto adiff_m3_p3 = simd_abs_diff_epu8(cur_minus_3, next_plus_3);
-        simd_store(buffers[ADIFF_M3_P3]+bufferOffset + x, adiff_m3_p3);
+        simd_store_si128<uint8_t, alignedStore>(buffers[ADIFF_M3_P3]+bufferOffset + x, adiff_m3_p3);
 
         auto adiff_m2_p2 = simd_abs_diff_epu8(cur_minus_2, next_plus_2);
-        simd_store(buffers[ADIFF_M2_P2]+bufferOffset + x, adiff_m2_p2);
+        simd_store_si128<uint8_t, alignedStore>(buffers[ADIFF_M2_P2]+bufferOffset + x, adiff_m2_p2);
 
         auto adiff_m1_p1 = simd_abs_diff_epu8(cur_minus_1, next_plus_1);
-        simd_store(buffers[ADIFF_M1_P1]+bufferOffset + x, adiff_m1_p1);
+        simd_store_si128<uint8_t, alignedStore>(buffers[ADIFF_M1_P1]+bufferOffset + x, adiff_m1_p1);
 
         auto adiff_0     = simd_abs_diff_epu8(cur, next);
-        simd_store(buffers[ADIFF_P0_M0]+bufferOffset + x, adiff_0);
+        simd_store_si128<uint8_t, alignedStore>(buffers[ADIFF_P0_M0]+bufferOffset + x, adiff_0);
 
         auto adiff_p1_m1 = simd_abs_diff_epu8(cur_plus_1, next_minus_1);
-        simd_store(buffers[ADIFF_P1_M1]+bufferOffset + x, adiff_p1_m1);
+        simd_store_si128<uint8_t, alignedStore>(buffers[ADIFF_P1_M1]+bufferOffset + x, adiff_p1_m1);
 
         auto adiff_p2_m2 = simd_abs_diff_epu8(cur_plus_2, next_minus_2);
-        simd_store(buffers[ADIFF_P2_M2]+bufferOffset + x, adiff_p2_m2);
+        simd_store_si128<uint8_t, alignedStore>(buffers[ADIFF_P2_M2]+bufferOffset + x, adiff_p2_m2);
 
         auto adiff_p3_m3 = simd_abs_diff_epu8(cur_plus_3, next_minus_3);
-        simd_store(buffers[ADIFF_P3_M3]+bufferOffset + x, adiff_p3_m3);
+        simd_store_si128<uint8_t, alignedStore>(buffers[ADIFF_P3_M3]+bufferOffset + x, adiff_p3_m3);
 
         //////////////////////////////////////////////////////////////////////////
         auto temp1 = calculateSangnom(cur_minus_1, cur, cur_plus_1);
@@ -363,14 +360,14 @@ static inline void prepareBuffersLine(const uint8_t* srcp, const uint8_t *srcpn2
 
         //abs((cur_minus_1*4 + cur*5 - cur_plus_1) / 8  - (next_plus_1*4 + next*5 - next_minus_1) / 8)
         auto absdiff_p1_p2 = simd_abs_diff_epu8(temp1, temp2);
-        simd_store(buffers[SG_FORWARD]+bufferOffset + x, absdiff_p1_p2);
+        simd_store_si128<uint8_t, alignedStore>(buffers[SG_FORWARD]+bufferOffset + x, absdiff_p1_p2);
         //////////////////////////////////////////////////////////////////////////
         auto temp3 = calculateSangnom(cur_plus_1, cur, cur_minus_1);
         auto temp4 = calculateSangnom(next_minus_1, next, next_plus_1);
 
         //abs((cur_plus_1*4 + cur*5 - cur_minus_1) / 8  - (next_minus_1*4 + next*5 - next_plus_1) / 8)
         auto absdiff_p3_p4 = simd_abs_diff_epu8(temp3, temp4);
-        simd_store(buffers[SG_REVERSE]+bufferOffset + x, absdiff_p3_p4);
+        simd_store_si128<uint8_t, alignedStore>(buffers[SG_REVERSE]+bufferOffset + x, absdiff_p3_p4);
         //////////////////////////////////////////////////////////////////////////
     }
 }
@@ -383,11 +380,11 @@ static inline void prepareBuffers(const uint8_t* srcp, uint8_t* buffers[BUFFERS_
     const int widthMod16 = (width + 15) & ~15;
 
     for (int y = 0; y < height / 2 - 1; y++) {
-        prepareBuffersLine<BorderMode::LEFT, simd_load_si128, simd_store_si128>(srcp, srcpn2, buffers, bufferOffset, 16);
+        prepareBuffersLine<BorderMode::LEFT, true, true>(srcp, srcpn2, buffers, bufferOffset, 16);
 
-        prepareBuffersLine<BorderMode::NONE, simd_load_si128, simd_store_si128>(srcp + 16, srcpn2 + 16, buffers, bufferOffset + 16, widthMod16 - 16);
+        prepareBuffersLine<BorderMode::NONE, true, true>(srcp + 16, srcpn2 + 16, buffers, bufferOffset + 16, widthMod16 - 16);
 
-        prepareBuffersLine<BorderMode::RIGHT, simd_loadu_si128, simd_storeu_si128>(srcp + width - 16, srcpn2 + width - 16, buffers, bufferOffset + width - 16, 16);
+        prepareBuffersLine<BorderMode::RIGHT, false, false>(srcp + width - 16, srcpn2 + width - 16, buffers, bufferOffset + width - 16, 16);
 
         srcp += srcStride * 2;
         srcpn2 += srcStride * 2;
@@ -398,21 +395,21 @@ static inline void prepareBuffers(const uint8_t* srcp, uint8_t* buffers[BUFFERS_
 template <BorderMode border>
 static inline void finalizeBufferProcessingBlock(uint8_t* temp, uint8_t* srcpn, int x) {
 
-    auto cur_minus_6_lo = simd_load_three_epi16_to_left<border == BorderMode::LEFT, simd_load_si128>(temp + x * 2);
-    auto cur_minus_4_lo = simd_load_two_epi16_to_left<border == BorderMode::LEFT, simd_load_si128>(temp + x * 2);
-    auto cur_minus_2_lo = simd_load_one_epi16_to_left<border == BorderMode::LEFT, simd_load_si128>(temp + x * 2);
-    auto cur_lo         = simd_load_si128(temp + x * 2);
-    auto cur_plus_2_lo  = simd_load_one_epi16_to_right<false, simd_load_si128>(temp + x * 2);
-    auto cur_plus_4_lo  = simd_load_two_epi16_to_right<false, simd_load_si128>(temp + x * 2);
-    auto cur_plus_6_lo  = simd_load_three_epi16_to_right<false, simd_load_si128>(temp + x * 2);
+    auto cur_minus_6_lo = simd_load_three_epi16_to_left<border == BorderMode::LEFT, true>(temp + x * 2);
+    auto cur_minus_4_lo = simd_load_two_epi16_to_left<border == BorderMode::LEFT, true>(temp + x * 2);
+    auto cur_minus_2_lo = simd_load_one_epi16_to_left<border == BorderMode::LEFT, true>(temp + x * 2);
+    auto cur_lo         = simd_load_si128<uint8_t, true>(temp + x * 2);
+    auto cur_plus_2_lo  = simd_load_one_epi16_to_right<false, true>(temp + x * 2);
+    auto cur_plus_4_lo  = simd_load_two_epi16_to_right<false, true>(temp + x * 2);
+    auto cur_plus_6_lo  = simd_load_three_epi16_to_right<false, true>(temp + x * 2);
 
-    auto cur_minus_6_hi = simd_load_three_epi16_to_left<false, simd_load_si128>(temp + x * 2 + 16);
-    auto cur_minus_4_hi = simd_load_two_epi16_to_left<false, simd_load_si128>(temp + x * 2 + 16);
-    auto cur_minus_2_hi = simd_load_one_epi16_to_left<false, simd_load_si128>(temp + x * 2 + 16);
-    auto cur_hi         = simd_load_si128(temp + x * 2 + 16);
-    auto cur_plus_2_hi  = simd_load_one_epi16_to_right<border == BorderMode::RIGHT, simd_load_si128>(temp + x * 2 + 16);
-    auto cur_plus_4_hi  = simd_load_two_epi16_to_right<border == BorderMode::RIGHT, simd_load_si128>(temp + x * 2 + 16);
-    auto cur_plus_6_hi  = simd_load_three_epi16_to_right<border == BorderMode::RIGHT, simd_load_si128>(temp + x * 2 + 16);
+    auto cur_minus_6_hi = simd_load_three_epi16_to_left<false, true>(temp + x * 2 + 16);
+    auto cur_minus_4_hi = simd_load_two_epi16_to_left<false, true>(temp + x * 2 + 16);
+    auto cur_minus_2_hi = simd_load_one_epi16_to_left<false, true>(temp + x * 2 + 16);
+    auto cur_hi         = simd_load_si128<uint8_t, true>(temp + x * 2 + 16);
+    auto cur_plus_2_hi  = simd_load_one_epi16_to_right<border == BorderMode::RIGHT, true>(temp + x * 2 + 16);
+    auto cur_plus_4_hi  = simd_load_two_epi16_to_right<border == BorderMode::RIGHT, true>(temp + x * 2 + 16);
+    auto cur_plus_6_hi  = simd_load_three_epi16_to_right<border == BorderMode::RIGHT, true>(temp + x * 2 + 16);
 
     auto sum_lo = _mm_adds_epu16(cur_minus_6_lo, cur_minus_4_lo);
     sum_lo = _mm_adds_epu16(sum_lo, cur_minus_2_lo);
@@ -433,7 +430,7 @@ static inline void finalizeBufferProcessingBlock(uint8_t* temp, uint8_t* srcpn, 
     sum_hi = _mm_srli_epi16(sum_hi, 4);
 
     auto result = _mm_packus_epi16(sum_lo, sum_hi);
-    simd_store_si128(srcpn + x, result);
+    simd_store_si128<uint8_t, true>(srcpn + x, result);
 }
 
 static inline void processBuffer(uint8_t* buffer, uint8_t* temp, int stride, int height) {
@@ -448,9 +445,9 @@ static inline void processBuffer(uint8_t* buffer, uint8_t* temp, int stride, int
 
         for(int x = 0; x < stride; x += 16) {
 
-            auto src = simd_load_si128(srcp + x);
-            auto srcn = simd_load_si128(srcpn1 + x);
-            auto srcn2 = simd_load_si128(srcpn2 + x);
+            auto src = simd_load_si128<uint8_t, true>(srcp + x);
+            auto srcn = simd_load_si128<uint8_t, true>(srcpn1 + x);
+            auto srcn2 = simd_load_si128<uint8_t, true>(srcpn2 + x);
 
             auto src_lo = _mm_unpacklo_epi8(src, zero);
             auto srcn_lo = _mm_unpacklo_epi8(srcn, zero);
@@ -466,8 +463,8 @@ static inline void processBuffer(uint8_t* buffer, uint8_t* temp, int stride, int
             auto sum_hi = _mm_adds_epu16(src_hi, srcn_hi);
             sum_hi = _mm_adds_epu16(sum_hi, srcn2_hi);
 
-            simd_store_si128(temp+(x * 2), sum_lo);
-            simd_store_si128(temp+(x * 2) + 16, sum_hi);
+            simd_store_si128<uint8_t, true>(temp+(x * 2), sum_lo);
+            simd_store_si128<uint8_t, true>(temp+(x * 2) + 16, sum_hi);
         }
 
         finalizeBufferProcessingBlock<BorderMode::LEFT>(temp, srcpn1, 0);
@@ -484,36 +481,36 @@ static inline void processBuffer(uint8_t* buffer, uint8_t* temp, int stride, int
     }
 }
 
-template <BorderMode border, decltype(simd_load_si128) simd_load, decltype(simd_load_si128) simd_load_buffer, decltype(simd_store_si128) simd_store>
+template <BorderMode border, bool alignedLoad, bool alignedLoadBuffer, bool alignedStore>
 static inline void finalizePlaneLine(const uint8_t* srcp, const uint8_t* srcpn2, uint8_t* dstpn, uint8_t* buffers[BUFFERS_COUNT], int bufferOffset, int width, const __m128i& aath) {
 
     auto zero = _mm_setzero_si128();
     for (int x = 0; x < width; x += 16) {
-        auto buf0 = simd_load_buffer(buffers[ADIFF_M3_P3] + bufferOffset + x);
-        auto buf1 = simd_load_buffer(buffers[ADIFF_M2_P2] + bufferOffset + x);
-        auto buf2 = simd_load_buffer(buffers[ADIFF_M1_P1] + bufferOffset + x);
-        auto buf3 = simd_load_buffer(buffers[SG_FORWARD]  + bufferOffset + x);
-        auto buf4 = simd_load_buffer(buffers[ADIFF_P0_M0] + bufferOffset + x);
-        auto buf5 = simd_load_buffer(buffers[SG_REVERSE]  + bufferOffset + x);
-        auto buf6 = simd_load_buffer(buffers[ADIFF_P1_M1] + bufferOffset + x);
-        auto buf7 = simd_load_buffer(buffers[ADIFF_P2_M2] + bufferOffset + x);
-        auto buf8 = simd_load_buffer(buffers[ADIFF_P3_M3] + bufferOffset + x);
+        auto buf0 = simd_load_si128<uint8_t, alignedLoadBuffer>(buffers[ADIFF_M3_P3] + bufferOffset + x);
+        auto buf1 = simd_load_si128<uint8_t, alignedLoadBuffer>(buffers[ADIFF_M2_P2] + bufferOffset + x);
+        auto buf2 = simd_load_si128<uint8_t, alignedLoadBuffer>(buffers[ADIFF_M1_P1] + bufferOffset + x);
+        auto buf3 = simd_load_si128<uint8_t, alignedLoadBuffer>(buffers[SG_FORWARD]  + bufferOffset + x);
+        auto buf4 = simd_load_si128<uint8_t, alignedLoadBuffer>(buffers[ADIFF_P0_M0] + bufferOffset + x);
+        auto buf5 = simd_load_si128<uint8_t, alignedLoadBuffer>(buffers[SG_REVERSE]  + bufferOffset + x);
+        auto buf6 = simd_load_si128<uint8_t, alignedLoadBuffer>(buffers[ADIFF_P1_M1] + bufferOffset + x);
+        auto buf7 = simd_load_si128<uint8_t, alignedLoadBuffer>(buffers[ADIFF_P2_M2] + bufferOffset + x);
+        auto buf8 = simd_load_si128<uint8_t, alignedLoadBuffer>(buffers[ADIFF_P3_M3] + bufferOffset + x);
 
-        auto cur_minus_3   = simd_load_three_to_left<border == BorderMode::LEFT, simd_load>(srcp + x);
-        auto cur_minus_2   = simd_load_two_to_left<border == BorderMode::LEFT, simd_load>(srcp + x);
-        auto cur_minus_1   = simd_load_one_to_left<border == BorderMode::LEFT, simd_load>(srcp + x);
-        auto cur           = simd_load(srcp + x);
-        auto cur_plus_1    = simd_load_one_to_right<border == BorderMode::RIGHT, simd_load>(srcp + x);
-        auto cur_plus_2    = simd_load_two_to_right<border == BorderMode::RIGHT, simd_load>(srcp + x);
-        auto cur_plus_3    = simd_load_three_to_right<border == BorderMode::RIGHT, simd_load>(srcp + x);
+        auto cur_minus_3   = simd_load_three_to_left<border == BorderMode::LEFT, alignedLoad>(srcp + x);
+        auto cur_minus_2   = simd_load_two_to_left<border == BorderMode::LEFT, alignedLoad>(srcp + x);
+        auto cur_minus_1   = simd_load_one_to_left<border == BorderMode::LEFT, alignedLoad>(srcp + x);
+        auto cur           = simd_load_si128<uint8_t, alignedLoad>(srcp + x);
+        auto cur_plus_1    = simd_load_one_to_right<border == BorderMode::RIGHT, alignedLoad>(srcp + x);
+        auto cur_plus_2    = simd_load_two_to_right<border == BorderMode::RIGHT, alignedLoad>(srcp + x);
+        auto cur_plus_3    = simd_load_three_to_right<border == BorderMode::RIGHT, alignedLoad>(srcp + x);
 
-        auto next_minus_3  = simd_load_three_to_left<border == BorderMode::LEFT, simd_load>(srcpn2 + x);
-        auto next_minus_2  = simd_load_two_to_left<border == BorderMode::LEFT, simd_load>(srcpn2 + x);
-        auto next_minus_1  = simd_load_one_to_left<border == BorderMode::LEFT, simd_load>(srcpn2 + x);
-        auto next          = simd_load(srcpn2 + x);
-        auto next_plus_1   = simd_load_one_to_right<border == BorderMode::RIGHT, simd_load>(srcpn2 + x);
-        auto next_plus_2   = simd_load_two_to_right<border == BorderMode::RIGHT, simd_load>(srcpn2 + x);
-        auto next_plus_3   = simd_load_three_to_right<border == BorderMode::RIGHT, simd_load>(srcpn2 + x);
+        auto next_minus_3  = simd_load_three_to_left<border == BorderMode::LEFT, alignedLoad>(srcpn2 + x);
+        auto next_minus_2  = simd_load_two_to_left<border == BorderMode::LEFT, alignedLoad>(srcpn2 + x);
+        auto next_minus_1  = simd_load_one_to_left<border == BorderMode::LEFT, alignedLoad>(srcpn2 + x);
+        auto next          = simd_load_si128<uint8_t, alignedLoad>(srcpn2 + x);
+        auto next_plus_1   = simd_load_one_to_right<border == BorderMode::RIGHT, alignedLoad>(srcpn2 + x);
+        auto next_plus_2   = simd_load_two_to_right<border == BorderMode::RIGHT, alignedLoad>(srcpn2 + x);
+        auto next_plus_3   = simd_load_three_to_right<border == BorderMode::RIGHT, alignedLoad>(srcpn2 + x);
 
         auto minbuf = _mm_min_epu8(buf0, buf1);
         minbuf = _mm_min_epu8(minbuf, buf2);
@@ -561,7 +558,7 @@ static inline void finalizePlaneLine(const uint8_t* srcp, const uint8_t* srcpn2,
         average = _mm_andnot_si128(mask, average);
         auto result = _mm_or_si128(processed, average);
 
-        simd_store(dstpn + x, result);
+        simd_store_si128<uint8_t, alignedStore>(dstpn + x, result);
     }
 }
 
@@ -574,11 +571,11 @@ static inline void finalizePlane(const uint8_t* srcp, uint8_t* dstp, uint8_t* bu
     const int widthMod16 = (width + 15) & ~15;
 
     for (int y = 0; y < height / 2 - 1; ++y) {
-        finalizePlaneLine<BorderMode::LEFT, simd_load_si128, simd_load_si128, simd_store_si128>(srcp, srcpn2, dstpn, buffers, bufferOffset, 16, aav);
+        finalizePlaneLine<BorderMode::LEFT, true, true, true>(srcp, srcpn2, dstpn, buffers, bufferOffset, 16, aav);
 
-        finalizePlaneLine<BorderMode::NONE, simd_load_si128, simd_load_si128, simd_store_si128>(srcp + 16, srcpn2 + 16, dstpn + 16, buffers, bufferOffset + 16, widthMod16 - 16, aav);
+        finalizePlaneLine<BorderMode::NONE, true, true, true>(srcp + 16, srcpn2 + 16, dstpn + 16, buffers, bufferOffset + 16, widthMod16 - 16, aav);
 
-        finalizePlaneLine<BorderMode::RIGHT, simd_loadu_si128, simd_loadu_si128, simd_storeu_si128>(srcp + width - 16, srcpn2 + width - 16, dstpn + width - 16, buffers, bufferOffset + width - 16, 16, aav);
+        finalizePlaneLine<BorderMode::RIGHT, false, false, false>(srcp + width - 16, srcpn2 + width - 16, dstpn + width - 16, buffers, bufferOffset + width - 16, 16, aav);
 
         srcp += srcStride * 2;
         srcpn2 += srcStride * 2;
