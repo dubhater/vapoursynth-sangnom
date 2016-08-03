@@ -936,7 +936,7 @@ static inline void sangnom(const T *srcp, const int srcStride, T *dstp, const in
         processBuffer(buffers[i], bufferLine, d->bufferStride, d->bufferHeight);
 
     // finalize plane
-    finalizePlane(srcp + d->offset * srcStride, dstp + d->offset * dstStride, buffers, srcStride, dstStride, d->bufferStride, w, h, d->aa);
+    finalizePlane(srcp + d->offset * srcStride, dstp + d->offset * dstStride, buffers, srcStride, dstStride, d->bufferStride, w, h, d->aaf);
 }
 
 
