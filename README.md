@@ -9,7 +9,7 @@
 
 ## Usage ##
 
-    sangnom.SangNom(src, order=1, aa=64, planes=[0, 1, 2])
+    sangnom.SangNom(src, order=1, aa=48, planes=[0, 1, 2])
 
 *   the default setting, interpolates bottom field for all planes.
 ***
@@ -17,7 +17,7 @@
 
 ## Parameter ##
 
-    sangnom.SangNom(clip clip[, int order=1, int aa=64, int[] planes=[0, 1, 2]])
+    sangnom.SangNom(clip clip[, int order=1, int aa=48, int[] planes=[0, 1, 2]])
 
 *   clip: the src clip
     *   8..16 bit integer support
@@ -32,10 +32,9 @@
 
 ***
 *   aa: the strength of anti-aliasing, this value is considered in 8 bit clip
-    *   default: 64
-    *   range: 0 ... 168
+    *   default: 48
+    *   range: 0 ... 128
     *   note: don't use a too low value, it will produce crappy result, the default value is good enough
-    *   note: the default value 64 is equal to the aa=48 in AVISynth SangNom2
 
 ***
 *   planes: planes which are processed

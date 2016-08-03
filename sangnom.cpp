@@ -1049,11 +1049,11 @@ static void VS_CC sangnomCreate(const VSMap *in, VSMap *out, void *userData, VSC
             throw std::string("order must be 0 ... 2");
 
         d->aa = vsapi->propGetInt(in, "aa", 0, &err);
-        if (err) d->aa = 64;
+        if (err) d->aa = 48;
 
-        if (d->aa < 0 || d->aa > 168)
-            throw std::string("aa must be 0 ... 168");
-
+        if (d->aa < 0 || d->aa > 128)
+            throw std::string("aa must be 0 ... 128");
+        d->aa = (21 * d->aa) / 16;
         // tweak aa value for different format
         if (d->vi->format->sampleType == stInteger)
             d->aaf = d->aa << (d->vi->format->bitsPerSample - 8);
