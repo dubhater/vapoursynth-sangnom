@@ -1052,7 +1052,7 @@ static void VS_CC sangnomCreate(const VSMap *in, VSMap *out, void *userData, VSC
         if (err) d->aa = 64;
 
         if (d->aa < 0 || d->aa > 168)
-            throw std::string("aa must be 0 ... 128");
+            throw std::string("aa must be 0 ... 168");
 
         // tweak aa value for different format
         if (d->vi->format->sampleType == stInteger)
