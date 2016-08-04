@@ -20,7 +20,7 @@
 #include <cmath>
 #include <algorithm>
 #include <string>
-#include <emmintrin.h>
+#include <smmintrin.h>
 
 static const size_t alignment = 32;
 static const size_t sseBytes = 16;
@@ -441,6 +441,14 @@ inline __m128i sse_abs_diff<uint8_t, __m128i>(__m128i a, __m128i b)
     return _mm_or_si128(positive, negative);
 }
 
+template <>
+inline __m128i sse_abs_diff<uint16_t, __m128i>(__m128i a, __m128i b)
+{
+    auto positive = _mm_subs_epu16(a, b);
+    auto negative = _mm_subs_epu16(b, a);
+    return _mm_or_si128(positive, negative);
+}
+
 template <typename T, typename Arg>
 inline Arg calculateSangNom_sse(const Arg& p1, const Arg& p2, const Arg& p3);
 
@@ -479,6 +487,41 @@ inline __m128i calculateSangNom_sse<uint8_t, __m128i>(const __m128i& p1, const _
     return _mm_packus_epi16(sum_lo, sum_hi);
 }
 
+template <>
+inline __m128i calculateSangNom_sse<uint16_t, __m128i>(const __m128i& p1, const __m128i& p2, const __m128i& p3)
+{
+    const auto const_0 = _mm_setzero_si128();
+
+    auto p1_lo = _mm_unpacklo_epi16(p1, const_0);
+    auto p1_hi = _mm_unpackhi_epi16(p1, const_0);
+
+    auto p2_lo = _mm_unpacklo_epi16(p2, const_0);
+    auto p2_hi = _mm_unpackhi_epi16(p2, const_0);
+
+    auto p3_lo = _mm_unpacklo_epi16(p3, const_0);
+    auto p3_hi = _mm_unpackhi_epi16(p3, const_0);
+
+    p1_lo = _mm_slli_epi32(p1_lo, 2); // p1 * 4
+    p1_hi = _mm_slli_epi32(p1_hi, 2);
+
+    auto sum_lo = _mm_add_epi32(p1_lo, p2_lo); // p1 * 4 + p2
+    auto sum_hi = _mm_add_epi32(p1_hi, p2_hi);
+
+    p2_lo = _mm_slli_epi32(p2_lo, 2);
+    p2_hi = _mm_slli_epi32(p2_hi, 2);
+
+    sum_lo = _mm_add_epi32(sum_lo, p2_lo); // p1 * 4 + p2 * 5
+    sum_hi = _mm_add_epi32(sum_hi, p2_hi);
+
+    sum_lo = _mm_sub_epi32(sum_lo, p3_lo); // p1 * 4 + p2 * 5 - p3
+    sum_hi = _mm_sub_epi32(sum_hi, p3_hi);
+
+    sum_lo = _mm_srli_epi32(sum_lo, 3); // (p1 * 4 + p2 * 5 - p3) / 8
+    sum_hi = _mm_srli_epi32(sum_hi, 3);
+
+    return _mm_packus_epi32(sum_lo, sum_hi);
+}
+
 template <typename T, typename Arg>
 static inline Arg getAvgIfMinBuf(const Arg& a1, const Arg& a2, const Arg& buf, const Arg& minBuf, const Arg& acc);
 
@@ -487,6 +530,16 @@ inline __m128i getAvgIfMinBuf<uint8_t, __m128i>(const __m128i& a1, const __m128i
 {
     auto avg = _mm_avg_epu8(a1, a2);
     auto mask = _mm_cmpeq_epi8(buf, minBuf);
+    auto avgPart = _mm_and_si128(mask, avg);
+    auto accPart = _mm_andnot_si128(mask, acc);
+    return _mm_or_si128(avgPart, accPart);
+}
+
+template <>
+inline __m128i getAvgIfMinBuf<uint16_t, __m128i>(const __m128i& a1, const __m128i& a2, const __m128i& buf, const __m128i& minBuf, const __m128i& acc)
+{
+    auto avg = _mm_avg_epu16(a1, a2);
+    auto mask = _mm_cmpeq_epi16(buf, minBuf);
     auto avgPart = _mm_and_si128(mask, avg);
     auto accPart = _mm_andnot_si128(mask, acc);
     return _mm_or_si128(avgPart, accPart);
@@ -579,6 +632,47 @@ static inline void prepareBuffersLine_sse(const uint8_t *srcp, const uint8_t *sr
 
         sse_store_si128<uint8_t, alignedStore>((buffers[SG_FORWARD] + bufferOffset + x), sse_abs_diff<uint8_t, __m128i>(forwardSangNom1, forwardSangNom2));
         sse_store_si128<uint8_t, alignedStore>((buffers[SG_REVERSE] + bufferOffset + x), sse_abs_diff<uint8_t, __m128i>(backwardSangNom1, backwardSangNom2));
+    }
+}
+
+template <BorderMode border, bool alignedLoad, bool alignedStore>
+static inline void prepareBuffersLine_sse(const uint16_t *srcp, const uint16_t *srcpn2, uint16_t *buffers[TOTAL_BUFFERS], const int w, const int bufferOffset)
+{
+    constexpr int pixelPerInst = 8;
+
+    for (int x = 0; x < w; x += pixelPerInst) {
+
+        auto currLineM3 = sse_load_3_to_left_si128<uint16_t, border == BorderMode::LEFT, alignedLoad>(srcp + x);
+        auto currLineM2 = sse_load_2_to_left_si128<uint16_t, border == BorderMode::LEFT, alignedLoad>(srcp + x);
+        auto currLineM1 = sse_load_1_to_left_si128<uint16_t, border == BorderMode::LEFT, alignedLoad>(srcp + x);
+        auto currLine   = sse_load_si128<uint16_t, alignedLoad>(srcp + x);
+        auto currLineP1 = sse_load_1_to_right_si128<uint16_t, border == BorderMode::RIGHT, alignedLoad>(srcp + x);
+        auto currLineP2 = sse_load_2_to_right_si128<uint16_t, border == BorderMode::RIGHT, alignedLoad>(srcp + x);
+        auto currLineP3 = sse_load_3_to_right_si128<uint16_t, border == BorderMode::RIGHT, alignedLoad>(srcp + x);
+
+        auto nextLineM3 = sse_load_3_to_left_si128<uint16_t, border == BorderMode::LEFT, alignedLoad>(srcpn2 + x);
+        auto nextLineM2 = sse_load_2_to_left_si128<uint16_t, border == BorderMode::LEFT, alignedLoad>(srcpn2 + x);
+        auto nextLineM1 = sse_load_1_to_left_si128<uint16_t, border == BorderMode::LEFT, alignedLoad>(srcpn2 + x);
+        auto nextLine   = sse_load_si128<uint16_t, alignedLoad>(srcpn2 + x);
+        auto nextLineP1 = sse_load_1_to_right_si128<uint16_t, border == BorderMode::RIGHT, alignedLoad>(srcpn2 + x);
+        auto nextLineP2 = sse_load_2_to_right_si128<uint16_t, border == BorderMode::RIGHT, alignedLoad>(srcpn2 + x);
+        auto nextLineP3 = sse_load_3_to_right_si128<uint16_t, border == BorderMode::RIGHT, alignedLoad>(srcpn2 + x);
+
+        auto forwardSangNom1 = calculateSangNom_sse<uint16_t, __m128i>(currLineM1, currLine, currLineP1);
+        auto forwardSangNom2 = calculateSangNom_sse<uint16_t, __m128i>(nextLineP1, nextLine, nextLineM1);
+        auto backwardSangNom1 = calculateSangNom_sse<uint16_t, __m128i>(currLineP1, currLine, currLineM1);
+        auto backwardSangNom2 = calculateSangNom_sse<uint16_t, __m128i>(nextLineM1, nextLine, nextLineP1);
+
+        sse_store_si128<uint16_t, alignedStore>((buffers[ADIFF_M3_P3] + bufferOffset + x), sse_abs_diff<uint16_t, __m128i>(currLineM3, nextLineP3));
+        sse_store_si128<uint16_t, alignedStore>((buffers[ADIFF_M2_P2] + bufferOffset + x), sse_abs_diff<uint16_t, __m128i>(currLineM2, nextLineP2));
+        sse_store_si128<uint16_t, alignedStore>((buffers[ADIFF_M1_P1] + bufferOffset + x), sse_abs_diff<uint16_t, __m128i>(currLineM1, nextLineP1));
+        sse_store_si128<uint16_t, alignedStore>((buffers[ADIFF_P0_M0] + bufferOffset + x), sse_abs_diff<uint16_t, __m128i>(currLine, nextLine));
+        sse_store_si128<uint16_t, alignedStore>((buffers[ADIFF_P1_M1] + bufferOffset + x), sse_abs_diff<uint16_t, __m128i>(currLineP1, nextLineM1));
+        sse_store_si128<uint16_t, alignedStore>((buffers[ADIFF_P2_M2] + bufferOffset + x), sse_abs_diff<uint16_t, __m128i>(currLineP2, nextLineM2));
+        sse_store_si128<uint16_t, alignedStore>((buffers[ADIFF_P3_M3] + bufferOffset + x), sse_abs_diff<uint16_t, __m128i>(currLineP3, nextLineM3));
+
+        sse_store_si128<uint16_t, alignedStore>((buffers[SG_FORWARD] + bufferOffset + x), sse_abs_diff<uint16_t, __m128i>(forwardSangNom1, forwardSangNom2));
+        sse_store_si128<uint16_t, alignedStore>((buffers[SG_REVERSE] + bufferOffset + x), sse_abs_diff<uint16_t, __m128i>(backwardSangNom1, backwardSangNom2));
     }
 }
 
@@ -700,6 +794,52 @@ static inline void processBuffersBlock_sse(uint8_t *bufferp, const int16_t *buff
     sse_store_si128<uint8_t, true>(bufferp + x, result);
 }
 
+template <BorderMode border>
+static inline void processBuffersBlock_sse(uint16_t *bufferp, const int32_t *bufferTemp, const int x)
+{
+    constexpr int pixelPerInstIType = 4;
+
+    auto currLineM3_lo = sse_load_3_to_left_si128<int32_t, border == BorderMode::LEFT, true>(bufferTemp + x);
+    auto currLineM2_lo = sse_load_2_to_left_si128<int32_t, border == BorderMode::LEFT, true>(bufferTemp + x);
+    auto currLineM1_lo = sse_load_1_to_left_si128<int32_t, border == BorderMode::LEFT, true>(bufferTemp + x);
+    auto currLine_lo   = sse_load_si128<int32_t, true>(bufferTemp + x);
+    auto currLineP1_lo = sse_load_1_to_right_si128<int32_t, false, true>(bufferTemp + x);
+    auto currLineP2_lo = sse_load_2_to_right_si128<int32_t, false, true>(bufferTemp + x);
+    auto currLineP3_lo = sse_load_3_to_right_si128<int32_t, false, true>(bufferTemp + x);
+
+    auto currLineM3_hi = sse_load_3_to_left_si128<int32_t, false, true>(bufferTemp + x + pixelPerInstIType);
+    auto currLineM2_hi = sse_load_2_to_left_si128<int32_t, false, true>(bufferTemp + x + pixelPerInstIType);
+    auto currLineM1_hi = sse_load_1_to_left_si128<int32_t, false, true>(bufferTemp + x + pixelPerInstIType);
+    auto currLine_hi   = sse_load_si128<int32_t, true>(bufferTemp + x + pixelPerInstIType);
+    auto currLineP1_hi = sse_load_1_to_right_si128<int32_t, border == BorderMode::RIGHT, true>(bufferTemp + x + pixelPerInstIType);
+    auto currLineP2_hi = sse_load_2_to_right_si128<int32_t, border == BorderMode::RIGHT, true>(bufferTemp + x + pixelPerInstIType);
+    auto currLineP3_hi = sse_load_3_to_right_si128<int32_t, border == BorderMode::RIGHT, true>(bufferTemp + x + pixelPerInstIType);
+
+    auto sum_lo = _mm_add_epi32(currLineM3_lo, currLineM2_lo);
+    sum_lo = _mm_add_epi32(sum_lo, currLineM1_lo);
+    sum_lo = _mm_add_epi32(sum_lo, currLine_lo);
+    sum_lo = _mm_add_epi32(sum_lo, currLineP1_lo);
+    sum_lo = _mm_add_epi32(sum_lo, currLineP2_lo);
+    sum_lo = _mm_add_epi32(sum_lo, currLineP3_lo);
+
+    sum_lo = _mm_srli_epi32(sum_lo, 4);
+
+
+    auto sum_hi = _mm_add_epi32(currLineM3_hi, currLineM2_hi);
+    sum_hi = _mm_add_epi32(sum_hi, currLineM1_hi);
+    sum_hi = _mm_add_epi32(sum_hi, currLine_hi);
+    sum_hi = _mm_add_epi32(sum_hi, currLineP1_hi);
+    sum_hi = _mm_add_epi32(sum_hi, currLineP2_hi);
+    sum_hi = _mm_add_epi32(sum_hi, currLineP3_hi);
+
+    sum_hi = _mm_srli_epi32(sum_hi, 4);
+
+
+    auto result = _mm_packus_epi32(sum_lo, sum_hi);
+
+    sse_store_si128<uint16_t, true>(bufferp + x, result);
+}
+
 static inline void processBuffers_sse(uint8_t *bufferp, int16_t *bufferTemp, const int bufferStride, const int bufferHeight)
 {
     auto bufferpp1 = bufferp;
@@ -736,6 +876,67 @@ static inline void processBuffers_sse(uint8_t *bufferp, int16_t *bufferTemp, con
 
             sse_store_si128<int16_t, true>(bufferTempc + x, sum_lo);
             sse_store_si128<int16_t, true>(bufferTempc + x + pixelPerInstIType, sum_hi);
+        }
+
+        bufferpc0 += bufferStride;
+        bufferpp1 += bufferStride;
+        bufferpn1 += bufferStride;
+        bufferTempc += bufferStride;
+    }
+
+    bufferpc0 = bufferp + bufferStride;
+    bufferTempc = bufferTemp + bufferStride;
+
+    for (int y = 0; y < bufferHeight - 1; ++y) {
+
+        processBuffersBlock_sse<BorderMode::LEFT>(bufferpc0, bufferTempc, 0);
+
+        for (int x = pixelPerInst; x < bufferStride - pixelPerInst; x += pixelPerInst)
+            processBuffersBlock_sse<BorderMode::NONE>(bufferpc0, bufferTempc, x);
+
+        processBuffersBlock_sse<BorderMode::RIGHT>(bufferpc0, bufferTempc, bufferStride - pixelPerInst);
+
+        bufferpc0 += bufferStride;
+        bufferTempc += bufferStride;
+    }
+}
+
+static inline void processBuffers_sse(uint16_t *bufferp, int32_t *bufferTemp, const int bufferStride, const int bufferHeight)
+{
+    auto bufferpp1 = bufferp;
+    auto bufferpc0 = bufferpp1 + bufferStride;
+    auto bufferpn1 = bufferpc0 + bufferStride;
+    auto bufferTempc = bufferTemp + bufferStride;
+
+    constexpr int pixelPerInst = sseBytes / sizeof(uint16_t);
+    constexpr int pixelPerInstIType = sseBytes / sizeof(int32_t);
+
+    for (int y = 0; y < bufferHeight - 1; ++y) {
+
+        const auto const_0 = _mm_setzero_si128();
+
+        for (int x = 0; x < bufferStride; x += pixelPerInst) {
+
+            auto srcp1 = sse_load_si128<uint16_t, true>(bufferpp1 + x);
+            auto srcc0 = sse_load_si128<uint16_t, true>(bufferpc0 + x);
+            auto srcn1 = sse_load_si128<uint16_t, true>(bufferpn1 + x);
+
+            auto srcp1_lo = _mm_unpacklo_epi16(srcp1, const_0);
+            auto srcc0_lo = _mm_unpacklo_epi16(srcc0, const_0);
+            auto srcn1_lo = _mm_unpacklo_epi16(srcn1, const_0);
+
+            auto srcp1_hi = _mm_unpackhi_epi16(srcp1, const_0);
+            auto srcc0_hi = _mm_unpackhi_epi16(srcc0, const_0);
+            auto srcn1_hi = _mm_unpackhi_epi16(srcn1, const_0);
+
+            auto sum_lo = _mm_add_epi32(srcp1_lo, srcc0_lo);
+            auto sum_hi = _mm_add_epi32(srcp1_hi, srcc0_hi);
+
+            sum_lo = _mm_add_epi32(sum_lo, srcn1_lo);
+            sum_hi = _mm_add_epi32(sum_hi, srcn1_hi);
+
+            sse_store_si128<int32_t, true>(bufferTempc + x, sum_lo);
+            sse_store_si128<int32_t, true>(bufferTempc + x + pixelPerInstIType, sum_hi);
         }
 
         bufferpc0 += bufferStride;
@@ -877,6 +1078,82 @@ static inline void finalizePlaneLine_sse(const uint8_t *srcp, const uint8_t *src
         auto result = _mm_or_si128(minBufAvg, buf4Avg);
 
         sse_store_si128<uint8_t, alignedStore>(dstpn + x, result);
+    }
+}
+
+template <BorderMode border, bool alignedLoad, bool alignedLoadBuffer, bool alignedStore>
+static inline void finalizePlaneLine_sse(const uint16_t *srcp, const uint16_t *srcpn2, uint16_t *dstpn, uint16_t *buffers[TOTAL_BUFFERS], int bufferOffset, const int w, const int pixelPerInst, const float aaf)
+{
+    const auto aa = _mm_set1_epi16(aaf);
+    const auto const_0 = _mm_setzero_si128();
+
+    for (int x = 0; x < w; x += pixelPerInst) {
+
+        auto currLineM3 = sse_load_3_to_left_si128<uint16_t, border == BorderMode::LEFT, alignedLoad>(srcp + x);
+        auto currLineM2 = sse_load_2_to_left_si128<uint16_t, border == BorderMode::LEFT, alignedLoad>(srcp + x);
+        auto currLineM1 = sse_load_1_to_left_si128<uint16_t, border == BorderMode::LEFT, alignedLoad>(srcp + x);
+        auto currLine   = sse_load_si128<uint16_t, alignedLoad>(srcp + x);
+        auto currLineP1 = sse_load_1_to_right_si128<uint16_t, border == BorderMode::RIGHT, alignedLoad>(srcp + x);
+        auto currLineP2 = sse_load_2_to_right_si128<uint16_t, border == BorderMode::RIGHT, alignedLoad>(srcp + x);
+        auto currLineP3 = sse_load_3_to_right_si128<uint16_t, border == BorderMode::RIGHT, alignedLoad>(srcp + x);
+
+        auto nextLineM3 = sse_load_3_to_left_si128<uint16_t, border == BorderMode::LEFT, alignedLoad>(srcpn2 + x);
+        auto nextLineM2 = sse_load_2_to_left_si128<uint16_t, border == BorderMode::LEFT, alignedLoad>(srcpn2 + x);
+        auto nextLineM1 = sse_load_1_to_left_si128<uint16_t, border == BorderMode::LEFT, alignedLoad>(srcpn2 + x);
+        auto nextLine   = sse_load_si128<uint16_t, alignedLoad>(srcpn2 + x);
+        auto nextLineP1 = sse_load_1_to_right_si128<uint16_t, border == BorderMode::RIGHT, alignedLoad>(srcpn2 + x);
+        auto nextLineP2 = sse_load_2_to_right_si128<uint16_t, border == BorderMode::RIGHT, alignedLoad>(srcpn2 + x);
+        auto nextLineP3 = sse_load_3_to_right_si128<uint16_t, border == BorderMode::RIGHT, alignedLoad>(srcpn2 + x);
+
+        auto forwardSangNom1 = calculateSangNom_sse<uint16_t, __m128i>(currLineM1, currLine, currLineP1);
+        auto forwardSangNom2 = calculateSangNom_sse<uint16_t, __m128i>(nextLineP1, nextLine, nextLineM1);
+        auto backwardSangNom1 = calculateSangNom_sse<uint16_t, __m128i>(currLineP1, currLine, currLineM1);
+        auto backwardSangNom2 = calculateSangNom_sse<uint16_t, __m128i>(nextLineM1, nextLine, nextLineP1);
+
+        auto buf0 = sse_load_si128<uint16_t, alignedLoadBuffer>(buffers[ADIFF_M3_P3] + bufferOffset + x);
+        auto buf1 = sse_load_si128<uint16_t, alignedLoadBuffer>(buffers[ADIFF_M2_P2] + bufferOffset + x);
+        auto buf2 = sse_load_si128<uint16_t, alignedLoadBuffer>(buffers[ADIFF_M1_P1] + bufferOffset + x);
+        auto buf3 = sse_load_si128<uint16_t, alignedLoadBuffer>(buffers[SG_FORWARD] + bufferOffset + x);
+        auto buf4 = sse_load_si128<uint16_t, alignedLoadBuffer>(buffers[ADIFF_P0_M0] + bufferOffset + x);
+        auto buf5 = sse_load_si128<uint16_t, alignedLoadBuffer>(buffers[SG_REVERSE] + bufferOffset + x);
+        auto buf6 = sse_load_si128<uint16_t, alignedLoadBuffer>(buffers[ADIFF_P1_M1] + bufferOffset + x);
+        auto buf7 = sse_load_si128<uint16_t, alignedLoadBuffer>(buffers[ADIFF_P2_M2] + bufferOffset + x);
+        auto buf8 = sse_load_si128<uint16_t, alignedLoadBuffer>(buffers[ADIFF_P3_M3] + bufferOffset + x);
+
+        auto minBuf = _mm_min_epu16(buf0, buf1);
+        minBuf = _mm_min_epu16(minBuf, buf2);
+        minBuf = _mm_min_epu16(minBuf, buf3);
+        minBuf = _mm_min_epu16(minBuf, buf4);
+        minBuf = _mm_min_epu16(minBuf, buf5);
+        minBuf = _mm_min_epu16(minBuf, buf6);
+        minBuf = _mm_min_epu16(minBuf, buf7);
+        minBuf = _mm_min_epu16(minBuf, buf8);
+
+        auto minBufAvg = _mm_setzero_si128();
+
+        minBufAvg = getAvgIfMinBuf<uint16_t, __m128i>(currLineM3, nextLineP3, buf0, minBuf, minBufAvg);
+        minBufAvg = getAvgIfMinBuf<uint16_t, __m128i>(currLineM2, nextLineP2, buf1, minBuf, minBufAvg);
+        minBufAvg = getAvgIfMinBuf<uint16_t, __m128i>(currLineM1, nextLineP1, buf2, minBuf, minBufAvg);
+        minBufAvg = getAvgIfMinBuf<uint16_t, __m128i>(forwardSangNom1, forwardSangNom2, buf3, minBuf, minBufAvg);
+        minBufAvg = getAvgIfMinBuf<uint16_t, __m128i>(backwardSangNom1, backwardSangNom2, buf5, minBuf, minBufAvg);
+        minBufAvg = getAvgIfMinBuf<uint16_t, __m128i>(currLineP1, nextLineM1, buf6, minBuf, minBufAvg);
+        minBufAvg = getAvgIfMinBuf<uint16_t, __m128i>(currLineP2, nextLineM2, buf7, minBuf, minBufAvg);
+        minBufAvg = getAvgIfMinBuf<uint16_t, __m128i>(currLineP3, nextLineM3, buf8, minBuf, minBufAvg);
+
+        auto buf4Avg = _mm_avg_epu16(currLine, nextLine);
+
+        auto buf4IsMin = _mm_cmpeq_epi16(buf4, minBuf);
+
+        auto takeAA = _mm_subs_epu16(minBuf, aa);
+        auto takeMinBufAvg = _mm_cmpeq_epi16(takeAA, const_0);
+
+        auto mask = _mm_andnot_si128(buf4IsMin, takeMinBufAvg);
+
+        minBufAvg = _mm_and_si128(mask, minBufAvg);
+        buf4Avg = _mm_andnot_si128(mask, buf4Avg);
+        auto result = _mm_or_si128(minBufAvg, buf4Avg);
+
+        sse_store_si128<uint16_t, alignedStore>(dstpn + x, result);
     }
 }
 
@@ -1072,7 +1349,7 @@ static const VSFrameRef *VS_CC sangnomGetFrame(int n, int activationReason, void
                 if (d->vi->format->bitsPerSample == 8)
                     sangnom_sse<uint8_t, int16_t>(srcp, srcStride, dstp, dstStride, width, height, d, plane, reinterpret_cast<uint8_t**>(buffers), reinterpret_cast<int16_t*>(bufferTemp));
                 else
-                    sangnom_c<uint16_t, int32_t>(reinterpret_cast<const uint16_t*>(srcp), srcStride, reinterpret_cast<uint16_t*>(dstp), dstStride, width, height, d, plane, reinterpret_cast<uint16_t**>(buffers), reinterpret_cast<int32_t*>(bufferTemp));
+                    sangnom_sse<uint16_t, int32_t>(reinterpret_cast<const uint16_t*>(srcp), srcStride, reinterpret_cast<uint16_t*>(dstp), dstStride, width, height, d, plane, reinterpret_cast<uint16_t**>(buffers), reinterpret_cast<int32_t*>(bufferTemp));
             } else {
                 sangnom_c<float, float>(reinterpret_cast<const float*>(srcp), srcStride, reinterpret_cast<float*>(dstp), dstStride, width, height, d, plane, reinterpret_cast<float**>(buffers), reinterpret_cast<float*>(bufferTemp));
             }
