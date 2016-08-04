@@ -90,8 +90,22 @@ static inline IType calculateSangNom(const T &p1, const T &p2, const T &p3)
     return sum / 8;
 }
 
+template <typename T>
+static inline void copyField(const T *srcp, const int srcStride, T *dstp, const int dstStride, const int w, const int h, SangNomData *d)
+{
+    if (d->offset == 0) {
+        // keep top field so the bottom line can't be interpolated
+        // just copy the data from its correspond top field
+        vs_bitblt(dstp + (h - 1) * dstStride, dstStride, srcp + (h - 2) * srcStride, srcStride, w, 1);
+    } else {
+        // keep bottom field so the top line can't be interpolated
+        // just copy the data from its correspond bottom field
+        vs_bitblt(dstp, dstStride, srcp + srcStride, srcStride, w, 1);
+    }
+}
+
 template <typename T, typename IType>
-static inline void prepareBuffers(const T *srcp, const int srcStride, const int w, const int h, const int bufferStride, T *buffers[TOTAL_BUFFERS])
+static inline void prepareBuffers_c(const T *srcp, const int srcStride, const int w, const int h, const int bufferStride, T *buffers[TOTAL_BUFFERS])
 {
     auto srcpn2 = srcp + srcStride * 2;
 
@@ -141,7 +155,7 @@ static inline void prepareBuffers(const T *srcp, const int srcStride, const int 
 }
 
 template <typename T, typename IType>
-static inline void processBuffers(T *bufferp, IType *bufferTemp, const int bufferStride, const int bufferHeight, const int w)
+static inline void processBuffers_c(T *bufferp, IType *bufferTemp, const int bufferStride, const int bufferHeight, const int w)
 {
     auto bufferpc = bufferp + bufferStride;
     auto bufferpp1 = bufferpc - bufferStride;
@@ -184,7 +198,7 @@ static inline void processBuffers(T *bufferp, IType *bufferTemp, const int buffe
 }
 
 template <typename T, typename IType>
-static inline void finalizePlane(const T *srcp, const int srcStride, T *dstp, const int dstStride, const int w, const int h, const int bufferStride, const T aaf, T *buffers[TOTAL_BUFFERS])
+static inline void finalizePlane_c(const T *srcp, const int srcStride, T *dstp, const int dstStride, const int w, const int h, const int bufferStride, const T aaf, T *buffers[TOTAL_BUFFERS])
 {
     auto srcpn2 = srcp + srcStride * 2;
     auto dstpn = dstp + dstStride;
@@ -262,24 +276,16 @@ static inline void finalizePlane(const T *srcp, const int srcStride, T *dstp, co
 }
 
 template <typename T, typename IType>
-static inline void sangnom(const T *srcp, const int srcStride, T *dstp, const int dstStride, const int w, const int h, SangNomData *d, int plane, T *buffers[TOTAL_BUFFERS], IType *bufferTemp)
+static inline void sangnom_c(const T *srcp, const int srcStride, T *dstp, const int dstStride, const int w, const int h, SangNomData *d, int plane, T *buffers[TOTAL_BUFFERS], IType *bufferTemp)
 {
-    if (d->offset == 0) {
-        // keep top field so the bottom line can't be interpolated
-        // just copy the data from its correspond top field
-        vs_bitblt(dstp + (h - 1) * dstStride, dstStride, srcp + (h - 2) * srcStride, srcStride, w, 1);
-    } else {
-        // keep bottom field so the top line can't be interpolated
-        // just copy the data from its correspond bottom field
-        vs_bitblt(dstp, dstStride, srcp + srcStride, srcStride, w, 1);
-    }
+    copyField<T>(srcp, srcStride, dstp, dstStride, w, h, d);
 
-    prepareBuffers<T, IType>(srcp + d->offset * srcStride, srcStride, w, h, d->bufferStride, buffers);
+    prepareBuffers_c<T, IType>(srcp + d->offset * srcStride, srcStride, w, h, d->bufferStride, buffers);
 
     for (int i = 0; i < TOTAL_BUFFERS; ++i)
-        processBuffers<T, IType>(buffers[i], bufferTemp, d->bufferStride, d->bufferHeight, w);
+        processBuffers_c<T, IType>(buffers[i], bufferTemp, d->bufferStride, d->bufferHeight, w);
 
-    finalizePlane<T, IType>(srcp + d->offset * srcStride, srcStride, dstp + d->offset * dstStride, dstStride, w, h, d->bufferStride, d->aaf, buffers);
+    finalizePlane_c<T, IType>(srcp + d->offset * srcStride, srcStride, dstp + d->offset * dstStride, dstStride, w, h, d->bufferStride, d->aaf, buffers);
 }
 
 static void VS_CC sangnomInit(VSMap *in, VSMap *out, void **instanceData, VSNode* node, VSCore *core, const VSAPI *vsapi)
@@ -344,11 +350,11 @@ static const VSFrameRef *VS_CC sangnomGetFrame(int n, int activationReason, void
 
             if (d->vi->format->sampleType == stInteger) {
                 if (d->vi->format->bitsPerSample == 8)
-                    sangnom<uint8_t, int16_t>(srcp, srcStride, dstp, dstStride, width, height, d, plane, reinterpret_cast<uint8_t**>(buffers), reinterpret_cast<int16_t*>(bufferTemp));
+                    sangnom_c<uint8_t, int16_t>(srcp, srcStride, dstp, dstStride, width, height, d, plane, reinterpret_cast<uint8_t**>(buffers), reinterpret_cast<int16_t*>(bufferTemp));
                 else
-                    sangnom<uint16_t, int32_t>(reinterpret_cast<const uint16_t*>(srcp), srcStride, reinterpret_cast<uint16_t*>(dstp), dstStride, width, height, d, plane, reinterpret_cast<uint16_t**>(buffers), reinterpret_cast<int32_t*>(bufferTemp));
+                    sangnom_c<uint16_t, int32_t>(reinterpret_cast<const uint16_t*>(srcp), srcStride, reinterpret_cast<uint16_t*>(dstp), dstStride, width, height, d, plane, reinterpret_cast<uint16_t**>(buffers), reinterpret_cast<int32_t*>(bufferTemp));
             } else {
-                sangnom<float, float>(reinterpret_cast<const float*>(srcp), srcStride, reinterpret_cast<float*>(dstp), dstStride, width, height, d, plane, reinterpret_cast<float**>(buffers), reinterpret_cast<float*>(bufferTemp));
+                sangnom_c<float, float>(reinterpret_cast<const float*>(srcp), srcStride, reinterpret_cast<float*>(dstp), dstStride, width, height, d, plane, reinterpret_cast<float**>(buffers), reinterpret_cast<float*>(bufferTemp));
             }
         }
 
