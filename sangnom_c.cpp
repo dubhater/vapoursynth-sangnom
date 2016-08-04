@@ -2,6 +2,15 @@
 /**
  *  SangNom
  *
+ *  a rewrite version of AVISynth SangNom2
+ *
+ *
+ *
+ *  Original Author: Victor Efimov
+ *
+ *  Copyright (c) 2013 Victor Efimov
+ *  This project is licensed under the MIT license. Binaries are GPL v2.
+ *
  **/
 
 #include <VapourSynth.h>
