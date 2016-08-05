@@ -449,6 +449,14 @@ inline __m128i sse_abs_diff<uint16_t, __m128i>(__m128i a, __m128i b)
     return _mm_or_si128(positive, negative);
 }
 
+template <>
+inline __m128 sse_abs_diff<float, __m128>(__m128 a, __m128 b)
+{
+    auto positive = _mm_sub_ps(a, b);
+    auto negative = _mm_sub_ps(b, a);
+    return _mm_max_ps(positive, negative);
+}
+
 template <typename T, typename Arg>
 inline Arg calculateSangNom_sse(const Arg& p1, const Arg& p2, const Arg& p3);
 
@@ -522,6 +530,24 @@ inline __m128i calculateSangNom_sse<uint16_t, __m128i>(const __m128i& p1, const 
     return _mm_packus_epi32(sum_lo, sum_hi);
 }
 
+template <>
+inline __m128 calculateSangNom_sse<float, __m128>(const __m128& p1, const __m128& p2, const __m128& p3)
+{
+    const auto const_4 = _mm_set1_ps(4.0);
+    const auto const_5 = _mm_set1_ps(5.0);
+    const auto const_1_8 = _mm_set1_ps(1.0 / 8.0);
+
+    auto p1x4 = _mm_mul_ps(p1, const_4);
+    auto p2x5 = _mm_mul_ps(p2, const_5);
+
+    auto sum = _mm_add_ps(p1x4, p2x5);
+    sum = _mm_sub_ps(sum, p3);
+
+    sum = _mm_mul_ps(sum, const_1_8); // (p1 * 4 + p2 * 5 - p3) / 8
+
+    return sum;
+}
+
 template <typename T, typename Arg>
 static inline Arg getAvgIfMinBuf(const Arg& a1, const Arg& a2, const Arg& buf, const Arg& minBuf, const Arg& acc);
 
@@ -543,6 +569,17 @@ inline __m128i getAvgIfMinBuf<uint16_t, __m128i>(const __m128i& a1, const __m128
     auto avgPart = _mm_and_si128(mask, avg);
     auto accPart = _mm_andnot_si128(mask, acc);
     return _mm_or_si128(avgPart, accPart);
+}
+
+template <>
+inline __m128 getAvgIfMinBuf<float, __m128>(const __m128& a1, const __m128& a2, const __m128& buf, const __m128& minBuf, const __m128& acc)
+{
+    const auto const_1_2 = _mm_set1_ps(1.0 / 2.0);
+    auto avg = _mm_mul_ps(_mm_add_ps(a1, a2), const_1_2);
+    auto mask = _mm_cmple_ps(buf, minBuf);
+    auto avgPart = _mm_and_ps(mask, avg);
+    auto accPart = _mm_andnot_ps(mask, acc);
+    return _mm_or_ps(avgPart, accPart);
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -673,6 +710,47 @@ static inline void prepareBuffersLine_sse(const uint16_t *srcp, const uint16_t *
 
         sse_store_si128<uint16_t, alignedStore>((buffers[SG_FORWARD] + bufferOffset + x), sse_abs_diff<uint16_t, __m128i>(forwardSangNom1, forwardSangNom2));
         sse_store_si128<uint16_t, alignedStore>((buffers[SG_REVERSE] + bufferOffset + x), sse_abs_diff<uint16_t, __m128i>(backwardSangNom1, backwardSangNom2));
+    }
+}
+
+template <BorderMode border, bool alignedLoad, bool alignedStore>
+static inline void prepareBuffersLine_sse(const float *srcp, const float *srcpn2, float *buffers[TOTAL_BUFFERS], const int w, const int bufferOffset)
+{
+    constexpr int pixelPerInst = 4;
+
+    for (int x = 0; x < w; x += pixelPerInst) {
+
+        auto currLineM3 = sse_load_3_to_left_ps<float, border == BorderMode::LEFT, alignedLoad>(srcp + x);
+        auto currLineM2 = sse_load_2_to_left_ps<float, border == BorderMode::LEFT, alignedLoad>(srcp + x);
+        auto currLineM1 = sse_load_1_to_left_ps<float, border == BorderMode::LEFT, alignedLoad>(srcp + x);
+        auto currLine   = sse_load_ps<float, alignedLoad>(srcp + x);
+        auto currLineP1 = sse_load_1_to_right_ps<float, border == BorderMode::RIGHT, alignedLoad>(srcp + x);
+        auto currLineP2 = sse_load_2_to_right_ps<float, border == BorderMode::RIGHT, alignedLoad>(srcp + x);
+        auto currLineP3 = sse_load_3_to_right_ps<float, border == BorderMode::RIGHT, alignedLoad>(srcp + x);
+
+        auto nextLineM3 = sse_load_3_to_left_ps<float, border == BorderMode::LEFT, alignedLoad>(srcpn2 + x);
+        auto nextLineM2 = sse_load_2_to_left_ps<float, border == BorderMode::LEFT, alignedLoad>(srcpn2 + x);
+        auto nextLineM1 = sse_load_1_to_left_ps<float, border == BorderMode::LEFT, alignedLoad>(srcpn2 + x);
+        auto nextLine   = sse_load_ps<float, alignedLoad>(srcpn2 + x);
+        auto nextLineP1 = sse_load_1_to_right_ps<float, border == BorderMode::RIGHT, alignedLoad>(srcpn2 + x);
+        auto nextLineP2 = sse_load_2_to_right_ps<float, border == BorderMode::RIGHT, alignedLoad>(srcpn2 + x);
+        auto nextLineP3 = sse_load_3_to_right_ps<float, border == BorderMode::RIGHT, alignedLoad>(srcpn2 + x);
+
+        auto forwardSangNom1 = calculateSangNom_sse<float, __m128>(currLineM1, currLine, currLineP1);
+        auto forwardSangNom2 = calculateSangNom_sse<float, __m128>(nextLineP1, nextLine, nextLineM1);
+        auto backwardSangNom1 = calculateSangNom_sse<float, __m128>(currLineP1, currLine, currLineM1);
+        auto backwardSangNom2 = calculateSangNom_sse<float, __m128>(nextLineM1, nextLine, nextLineP1);
+
+        sse_store_ps<float, alignedStore>((buffers[ADIFF_M3_P3] + bufferOffset + x), sse_abs_diff<float, __m128>(currLineM3, nextLineP3));
+        sse_store_ps<float, alignedStore>((buffers[ADIFF_M2_P2] + bufferOffset + x), sse_abs_diff<float, __m128>(currLineM2, nextLineP2));
+        sse_store_ps<float, alignedStore>((buffers[ADIFF_M1_P1] + bufferOffset + x), sse_abs_diff<float, __m128>(currLineM1, nextLineP1));
+        sse_store_ps<float, alignedStore>((buffers[ADIFF_P0_M0] + bufferOffset + x), sse_abs_diff<float, __m128>(currLine, nextLine));
+        sse_store_ps<float, alignedStore>((buffers[ADIFF_P1_M1] + bufferOffset + x), sse_abs_diff<float, __m128>(currLineP1, nextLineM1));
+        sse_store_ps<float, alignedStore>((buffers[ADIFF_P2_M2] + bufferOffset + x), sse_abs_diff<float, __m128>(currLineP2, nextLineM2));
+        sse_store_ps<float, alignedStore>((buffers[ADIFF_P3_M3] + bufferOffset + x), sse_abs_diff<float, __m128>(currLineP3, nextLineM3));
+
+        sse_store_ps<float, alignedStore>((buffers[SG_FORWARD] + bufferOffset + x), sse_abs_diff<float, __m128>(forwardSangNom1, forwardSangNom2));
+        sse_store_ps<float, alignedStore>((buffers[SG_REVERSE] + bufferOffset + x), sse_abs_diff<float, __m128>(backwardSangNom1, backwardSangNom2));
     }
 }
 
@@ -840,6 +918,31 @@ static inline void processBuffersBlock_sse(uint16_t *bufferp, const int32_t *buf
     sse_store_si128<uint16_t, true>(bufferp + x, result);
 }
 
+template <BorderMode border>
+static inline void processBuffersBlock_sse(float *bufferp, const float *bufferTemp, const int x)
+{
+    auto currLineM3 = sse_load_3_to_left_ps<float, border == BorderMode::LEFT, true>(bufferTemp + x);
+    auto currLineM2 = sse_load_2_to_left_ps<float, border == BorderMode::LEFT, true>(bufferTemp + x);
+    auto currLineM1 = sse_load_1_to_left_ps<float, border == BorderMode::LEFT, true>(bufferTemp + x);
+    auto currLine   = sse_load_ps<float, true>(bufferTemp + x);
+    auto currLineP1 = sse_load_1_to_right_ps<float, false, true>(bufferTemp + x);
+    auto currLineP2 = sse_load_2_to_right_ps<float, false, true>(bufferTemp + x);
+    auto currLineP3 = sse_load_3_to_right_ps<float, false, true>(bufferTemp + x);
+
+    auto sum = _mm_mul_ps(currLineM3, currLineM2);
+    sum = _mm_mul_ps(sum, currLineM1);
+    sum = _mm_mul_ps(sum, currLine);
+    sum = _mm_mul_ps(sum, currLineP1);
+    sum = _mm_mul_ps(sum, currLineP2);
+    sum = _mm_mul_ps(sum, currLineP3);
+
+    const auto const_1_16 = _mm_set1_ps(1.0 / 16.0);
+
+    auto result = _mm_mul_ps(sum, const_1_16);
+
+    sse_store_ps<float, true>(bufferp + x, result);
+}
+
 static inline void processBuffers_sse(uint8_t *bufferp, int16_t *bufferTemp, const int bufferStride, const int bufferHeight)
 {
     auto bufferpp1 = bufferp;
@@ -937,6 +1040,52 @@ static inline void processBuffers_sse(uint16_t *bufferp, int32_t *bufferTemp, co
 
             sse_store_si128<int32_t, true>(bufferTempc + x, sum_lo);
             sse_store_si128<int32_t, true>(bufferTempc + x + pixelPerInstIType, sum_hi);
+        }
+
+        bufferpc0 += bufferStride;
+        bufferpp1 += bufferStride;
+        bufferpn1 += bufferStride;
+        bufferTempc += bufferStride;
+    }
+
+    bufferpc0 = bufferp + bufferStride;
+    bufferTempc = bufferTemp + bufferStride;
+
+    for (int y = 0; y < bufferHeight - 1; ++y) {
+
+        processBuffersBlock_sse<BorderMode::LEFT>(bufferpc0, bufferTempc, 0);
+
+        for (int x = pixelPerInst; x < bufferStride - pixelPerInst; x += pixelPerInst)
+            processBuffersBlock_sse<BorderMode::NONE>(bufferpc0, bufferTempc, x);
+
+        processBuffersBlock_sse<BorderMode::RIGHT>(bufferpc0, bufferTempc, bufferStride - pixelPerInst);
+
+        bufferpc0 += bufferStride;
+        bufferTempc += bufferStride;
+    }
+}
+
+static inline void processBuffers_sse(float *bufferp, float *bufferTemp, const int bufferStride, const int bufferHeight)
+{
+    auto bufferpp1 = bufferp;
+    auto bufferpc0 = bufferpp1 + bufferStride;
+    auto bufferpn1 = bufferpc0 + bufferStride;
+    auto bufferTempc = bufferTemp + bufferStride;
+
+    constexpr int pixelPerInst = sseBytes / sizeof(float);
+
+    for (int y = 0; y < bufferHeight - 1; ++y) {
+
+        for (int x = 0; x < bufferStride; x += pixelPerInst) {
+
+            auto srcp1 = sse_load_ps<float, true>(bufferpp1 + x);
+            auto srcc0 = sse_load_ps<float, true>(bufferpc0 + x);
+            auto srcn1 = sse_load_ps<float, true>(bufferpn1 + x);
+
+            auto sum = _mm_add_ps(srcp1, srcc0);
+            sum = _mm_add_ps(sum, srcn1);
+
+            sse_store_ps<float, true>(bufferTempc + x, sum);
         }
 
         bufferpc0 += bufferStride;
@@ -1154,6 +1303,83 @@ static inline void finalizePlaneLine_sse(const uint16_t *srcp, const uint16_t *s
         auto result = _mm_or_si128(minBufAvg, buf4Avg);
 
         sse_store_si128<uint16_t, alignedStore>(dstpn + x, result);
+    }
+}
+
+template <BorderMode border, bool alignedLoad, bool alignedLoadBuffer, bool alignedStore>
+static inline void finalizePlaneLine_sse(const float *srcp, const float *srcpn2, float *dstpn, float *buffers[TOTAL_BUFFERS], int bufferOffset, const int w, const int pixelPerInst, const float aaf)
+{
+    const auto aa = _mm_set1_ps(aaf);
+    const auto const_0 = _mm_setzero_ps();
+    const auto const_1_2 = _mm_set1_ps(1.0 / 2.0);
+
+    for (int x = 0; x < w; x += pixelPerInst) {
+
+        auto currLineM3 = sse_load_3_to_left_ps<float, border == BorderMode::LEFT, alignedLoad>(srcp + x);
+        auto currLineM2 = sse_load_2_to_left_ps<float, border == BorderMode::LEFT, alignedLoad>(srcp + x);
+        auto currLineM1 = sse_load_1_to_left_ps<float, border == BorderMode::LEFT, alignedLoad>(srcp + x);
+        auto currLine   = sse_load_ps<float, alignedLoad>(srcp + x);
+        auto currLineP1 = sse_load_1_to_right_ps<float, border == BorderMode::RIGHT, alignedLoad>(srcp + x);
+        auto currLineP2 = sse_load_2_to_right_ps<float, border == BorderMode::RIGHT, alignedLoad>(srcp + x);
+        auto currLineP3 = sse_load_3_to_right_ps<float, border == BorderMode::RIGHT, alignedLoad>(srcp + x);
+
+        auto nextLineM3 = sse_load_3_to_left_ps<float, border == BorderMode::LEFT, alignedLoad>(srcpn2 + x);
+        auto nextLineM2 = sse_load_2_to_left_ps<float, border == BorderMode::LEFT, alignedLoad>(srcpn2 + x);
+        auto nextLineM1 = sse_load_1_to_left_ps<float, border == BorderMode::LEFT, alignedLoad>(srcpn2 + x);
+        auto nextLine   = sse_load_ps<float, alignedLoad>(srcpn2 + x);
+        auto nextLineP1 = sse_load_1_to_right_ps<float, border == BorderMode::RIGHT, alignedLoad>(srcpn2 + x);
+        auto nextLineP2 = sse_load_2_to_right_ps<float, border == BorderMode::RIGHT, alignedLoad>(srcpn2 + x);
+        auto nextLineP3 = sse_load_3_to_right_ps<float, border == BorderMode::RIGHT, alignedLoad>(srcpn2 + x);
+
+        auto forwardSangNom1 = calculateSangNom_sse<float, __m128>(currLineM1, currLine, currLineP1);
+        auto forwardSangNom2 = calculateSangNom_sse<float, __m128>(nextLineP1, nextLine, nextLineM1);
+        auto backwardSangNom1 = calculateSangNom_sse<float, __m128>(currLineP1, currLine, currLineM1);
+        auto backwardSangNom2 = calculateSangNom_sse<float, __m128>(nextLineM1, nextLine, nextLineP1);
+
+        auto buf0 = sse_load_ps<float, alignedLoadBuffer>(buffers[ADIFF_M3_P3] + bufferOffset + x);
+        auto buf1 = sse_load_ps<float, alignedLoadBuffer>(buffers[ADIFF_M2_P2] + bufferOffset + x);
+        auto buf2 = sse_load_ps<float, alignedLoadBuffer>(buffers[ADIFF_M1_P1] + bufferOffset + x);
+        auto buf3 = sse_load_ps<float, alignedLoadBuffer>(buffers[SG_FORWARD] + bufferOffset + x);
+        auto buf4 = sse_load_ps<float, alignedLoadBuffer>(buffers[ADIFF_P0_M0] + bufferOffset + x);
+        auto buf5 = sse_load_ps<float, alignedLoadBuffer>(buffers[SG_REVERSE] + bufferOffset + x);
+        auto buf6 = sse_load_ps<float, alignedLoadBuffer>(buffers[ADIFF_P1_M1] + bufferOffset + x);
+        auto buf7 = sse_load_ps<float, alignedLoadBuffer>(buffers[ADIFF_P2_M2] + bufferOffset + x);
+        auto buf8 = sse_load_ps<float, alignedLoadBuffer>(buffers[ADIFF_P3_M3] + bufferOffset + x);
+
+        auto minBuf = _mm_min_ps(buf0, buf1);
+        minBuf = _mm_min_ps(minBuf, buf2);
+        minBuf = _mm_min_ps(minBuf, buf3);
+        minBuf = _mm_min_ps(minBuf, buf4);
+        minBuf = _mm_min_ps(minBuf, buf5);
+        minBuf = _mm_min_ps(minBuf, buf6);
+        minBuf = _mm_min_ps(minBuf, buf7);
+        minBuf = _mm_min_ps(minBuf, buf8);
+
+        auto minBufAvg = _mm_setzero_ps();
+
+        minBufAvg = getAvgIfMinBuf<float, __m128>(currLineM3, nextLineP3, buf0, minBuf, minBufAvg);
+        minBufAvg = getAvgIfMinBuf<float, __m128>(currLineM2, nextLineP2, buf1, minBuf, minBufAvg);
+        minBufAvg = getAvgIfMinBuf<float, __m128>(currLineM1, nextLineP1, buf2, minBuf, minBufAvg);
+        minBufAvg = getAvgIfMinBuf<float, __m128>(forwardSangNom1, forwardSangNom2, buf3, minBuf, minBufAvg);
+        minBufAvg = getAvgIfMinBuf<float, __m128>(backwardSangNom1, backwardSangNom2, buf5, minBuf, minBufAvg);
+        minBufAvg = getAvgIfMinBuf<float, __m128>(currLineP1, nextLineM1, buf6, minBuf, minBufAvg);
+        minBufAvg = getAvgIfMinBuf<float, __m128>(currLineP2, nextLineM2, buf7, minBuf, minBufAvg);
+        minBufAvg = getAvgIfMinBuf<float, __m128>(currLineP3, nextLineM3, buf8, minBuf, minBufAvg);
+
+        auto buf4Avg = _mm_mul_ps(_mm_add_ps(currLine, nextLine), const_1_2);
+
+        auto buf4IsMin = _mm_cmpeq_ps(buf4, minBuf);
+
+        auto takeAA = _mm_sub_ps(minBuf, aa);
+        auto takeMinBufAvg = _mm_cmple_ps(takeAA, const_0);
+
+        auto mask = _mm_andnot_ps(buf4IsMin, takeMinBufAvg);
+
+        minBufAvg = _mm_and_ps(mask, minBufAvg);
+        buf4Avg = _mm_andnot_ps(mask, buf4Avg);
+        auto result = _mm_or_ps(minBufAvg, buf4Avg);
+
+        sse_store_ps<float, alignedStore>(dstpn + x, result);
     }
 }
 
