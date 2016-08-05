@@ -23,7 +23,7 @@
     sangnom.SangNom(clip clip[, int order=1, int aa=48, int[] planes=[0, 1, 2]])
 
 *   clip: the src clip
-    *   8..16 bit integer support, 32 bit integer support
+    *   8..16 bit integer support, 32 bit float support
     *   all colorfamily support
     *   note: integer input has sse support, others don't
 
