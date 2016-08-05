@@ -1204,14 +1204,20 @@ static inline void finalizePlaneLine_sse(const uint8_t *srcp, const uint8_t *src
 
         auto minBufAvg = _mm_setzero_si128();
 
+        ///////////////////////////////////////////////////////////////////////
+        // the order of getAvgIfMinBuf is important, don't change them
         minBufAvg = getAvgIfMinBuf<uint8_t, __m128i>(currLineM3, nextLineP3, buf0, minBuf, minBufAvg);
+        minBufAvg = getAvgIfMinBuf<uint8_t, __m128i>(currLineP3, nextLineM3, buf8, minBuf, minBufAvg);
+
         minBufAvg = getAvgIfMinBuf<uint8_t, __m128i>(currLineM2, nextLineP2, buf1, minBuf, minBufAvg);
+        minBufAvg = getAvgIfMinBuf<uint8_t, __m128i>(currLineP2, nextLineM2, buf7, minBuf, minBufAvg);
+
         minBufAvg = getAvgIfMinBuf<uint8_t, __m128i>(currLineM1, nextLineP1, buf2, minBuf, minBufAvg);
+        minBufAvg = getAvgIfMinBuf<uint8_t, __m128i>(currLineP1, nextLineM1, buf6, minBuf, minBufAvg);
+
         minBufAvg = getAvgIfMinBuf<uint8_t, __m128i>(forwardSangNom1, forwardSangNom2, buf3, minBuf, minBufAvg);
         minBufAvg = getAvgIfMinBuf<uint8_t, __m128i>(backwardSangNom1, backwardSangNom2, buf5, minBuf, minBufAvg);
-        minBufAvg = getAvgIfMinBuf<uint8_t, __m128i>(currLineP1, nextLineM1, buf6, minBuf, minBufAvg);
-        minBufAvg = getAvgIfMinBuf<uint8_t, __m128i>(currLineP2, nextLineM2, buf7, minBuf, minBufAvg);
-        minBufAvg = getAvgIfMinBuf<uint8_t, __m128i>(currLineP3, nextLineM3, buf8, minBuf, minBufAvg);
+        ///////////////////////////////////////////////////////////////////////
 
         auto buf4Avg = _mm_avg_epu8(currLine, nextLine);
 
@@ -1280,14 +1286,20 @@ static inline void finalizePlaneLine_sse(const uint16_t *srcp, const uint16_t *s
 
         auto minBufAvg = _mm_setzero_si128();
 
+        ///////////////////////////////////////////////////////////////////////
+        // the order of getAvgIfMinBuf is important, don't change them
         minBufAvg = getAvgIfMinBuf<uint16_t, __m128i>(currLineM3, nextLineP3, buf0, minBuf, minBufAvg);
+        minBufAvg = getAvgIfMinBuf<uint16_t, __m128i>(currLineP3, nextLineM3, buf8, minBuf, minBufAvg);
+
         minBufAvg = getAvgIfMinBuf<uint16_t, __m128i>(currLineM2, nextLineP2, buf1, minBuf, minBufAvg);
+        minBufAvg = getAvgIfMinBuf<uint16_t, __m128i>(currLineP2, nextLineM2, buf7, minBuf, minBufAvg);
+
         minBufAvg = getAvgIfMinBuf<uint16_t, __m128i>(currLineM1, nextLineP1, buf2, minBuf, minBufAvg);
+        minBufAvg = getAvgIfMinBuf<uint16_t, __m128i>(currLineP1, nextLineM1, buf6, minBuf, minBufAvg);
+
         minBufAvg = getAvgIfMinBuf<uint16_t, __m128i>(forwardSangNom1, forwardSangNom2, buf3, minBuf, minBufAvg);
         minBufAvg = getAvgIfMinBuf<uint16_t, __m128i>(backwardSangNom1, backwardSangNom2, buf5, minBuf, minBufAvg);
-        minBufAvg = getAvgIfMinBuf<uint16_t, __m128i>(currLineP1, nextLineM1, buf6, minBuf, minBufAvg);
-        minBufAvg = getAvgIfMinBuf<uint16_t, __m128i>(currLineP2, nextLineM2, buf7, minBuf, minBufAvg);
-        minBufAvg = getAvgIfMinBuf<uint16_t, __m128i>(currLineP3, nextLineM3, buf8, minBuf, minBufAvg);
+        ///////////////////////////////////////////////////////////////////////
 
         auto buf4Avg = _mm_avg_epu16(currLine, nextLine);
 
@@ -1357,14 +1369,20 @@ static inline void finalizePlaneLine_sse(const float *srcp, const float *srcpn2,
 
         auto minBufAvg = _mm_setzero_ps();
 
-        minBufAvg = getAvgIfMinBuf<float, __m128>(currLineM3, nextLineP3, buf0, minBuf, minBufAvg);
-        minBufAvg = getAvgIfMinBuf<float, __m128>(currLineM2, nextLineP2, buf1, minBuf, minBufAvg);
-        minBufAvg = getAvgIfMinBuf<float, __m128>(currLineM1, nextLineP1, buf2, minBuf, minBufAvg);
-        minBufAvg = getAvgIfMinBuf<float, __m128>(forwardSangNom1, forwardSangNom2, buf3, minBuf, minBufAvg);
-        minBufAvg = getAvgIfMinBuf<float, __m128>(backwardSangNom1, backwardSangNom2, buf5, minBuf, minBufAvg);
-        minBufAvg = getAvgIfMinBuf<float, __m128>(currLineP1, nextLineM1, buf6, minBuf, minBufAvg);
-        minBufAvg = getAvgIfMinBuf<float, __m128>(currLineP2, nextLineM2, buf7, minBuf, minBufAvg);
-        minBufAvg = getAvgIfMinBuf<float, __m128>(currLineP3, nextLineM3, buf8, minBuf, minBufAvg);
+        ///////////////////////////////////////////////////////////////////////
+        // the order of getAvgIfMinBuf is important, don't change them
+        minBufAvg = getAvgIfMinBuf<float, __m128i>(currLineM3, nextLineP3, buf0, minBuf, minBufAvg);
+        minBufAvg = getAvgIfMinBuf<float, __m128i>(currLineP3, nextLineM3, buf8, minBuf, minBufAvg);
+
+        minBufAvg = getAvgIfMinBuf<float, __m128i>(currLineM2, nextLineP2, buf1, minBuf, minBufAvg);
+        minBufAvg = getAvgIfMinBuf<float, __m128i>(currLineP2, nextLineM2, buf7, minBuf, minBufAvg);
+
+        minBufAvg = getAvgIfMinBuf<float, __m128i>(currLineM1, nextLineP1, buf2, minBuf, minBufAvg);
+        minBufAvg = getAvgIfMinBuf<float, __m128i>(currLineP1, nextLineM1, buf6, minBuf, minBufAvg);
+
+        minBufAvg = getAvgIfMinBuf<float, __m128i>(forwardSangNom1, forwardSangNom2, buf3, minBuf, minBufAvg);
+        minBufAvg = getAvgIfMinBuf<float, __m128i>(backwardSangNom1, backwardSangNom2, buf5, minBuf, minBufAvg);
+        ///////////////////////////////////////////////////////////////////////
 
         auto buf4Avg = _mm_mul_ps(_mm_add_ps(currLine, nextLine), const_1_2);
 
@@ -1451,30 +1469,30 @@ static inline void finalizePlane_c(const T *srcp, const int srcStride, T *dstp, 
             buf[7] = buffers[ADIFF_P2_M2][bufferOffset + x];
             buf[8] = buffers[ADIFF_P3_M3][bufferOffset + x];
 
-            int minIndex = 4;
-            for (int i = 0; i < 9; ++i) {
-                if (buf[i] < buf[minIndex])
-                    minIndex = i;
-            }
+            IType minBuf = buf[0];
+            for (int i = 1; i < 9; ++i)
+                minBuf = std::min(minBuf, buf[i]);
 
-            if (minIndex == 4 || buf[minIndex] >= aaf) {
+            ///////////////////////////////////////////////////////////////////////
+            // the order of following code is important, don't change them
+            if (buf[4] == minBuf || minBuf >= aaf) {
                 dstpn[x] = (currLine + nextLine) / 2;
-            } else if (minIndex == 0) {
-                dstpn[x] = (currLineM3 + nextLineP3) / 2;
-            } else if (minIndex == 1) {
-                dstpn[x] = (currLineM2 + nextLineP2) / 2;
-            } else if (minIndex == 2) {
-                dstpn[x] = (currLineM1 + nextLineP1) / 2;
-            } else if (minIndex == 3) {
-                dstpn[x] = (forwardSangNom1 + forwardSangNom2) / 2;
-            } else if (minIndex == 5) {
+            } else if (buf[5] == minBuf) {
                 dstpn[x] = (backwardSangNom1 + backwardSangNom2) / 2;
-            } else if (minIndex == 6) {
+            } else if (buf[3] == minBuf) {
+                dstpn[x] = (forwardSangNom1 + forwardSangNom2) / 2;
+            } else if (buf[6] == minBuf) {
                 dstpn[x] = (currLineP1 + nextLineM1) / 2;
-            } else if (minIndex == 7) {
+            } else if (buf[2] == minBuf) {
+                dstpn[x] = (currLineM1 + nextLineP1) / 2;
+            } else if (buf[7] == minBuf) {
                 dstpn[x] = (currLineP2 + nextLineM2) / 2;
-            } else if (minIndex == 8) {
+            } else if (buf[1] == minBuf) {
+                dstpn[x] = (currLineM2 + nextLineP2) / 2;
+            } else if (buf[8] == minBuf) {
                 dstpn[x] = (currLineP3 + nextLineM3) / 2;
+            } else if (buf[0] == minBuf) {
+                dstpn[x] = (currLineM3 + nextLineP3) / 2;
             }
         }
 
