@@ -762,7 +762,7 @@ static inline void prepareBuffers_sse(const T *srcp, const int srcStride, const 
     int bufferOffset = bufferStride;
 
     constexpr int pixelPerInst = sseBytes / sizeof(T);
-    const int wMod = (w + sseBytes - 1) & ~(sseBytes - 1);
+    const int wMod = (w + pixelPerInst - 1) & ~(pixelPerInst - 1);
 
     for (int y = 0; y < h / 2 - 1; ++y) {
 
@@ -1392,7 +1392,7 @@ static inline void finalizePlane_sse(const T *srcp, const int srcStride, T *dstp
     int bufferOffset = bufferStride;
 
     constexpr int pixelPerInst = sseBytes / sizeof(T);
-    const int wMod = (w + sseBytes - 1) & ~(sseBytes - 1);
+    const int wMod = (w + pixelPerInst - 1) & ~(pixelPerInst - 1);
 
     for (int y = 0; y < h / 2 - 1; ++y) {
 
