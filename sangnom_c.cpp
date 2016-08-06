@@ -20,10 +20,13 @@
 #include <cmath>
 #include <algorithm>
 #include <string>
-#include <smmintrin.h>
+
+#ifdef VS_TARGET_CPU_X86
+#include <emmintrin.h>
+static const size_t sseBytes = 16;
+#endif
 
 static const size_t alignment = 32;
-static const size_t sseBytes = 16;
 
 typedef struct SangNomData
 {
@@ -54,7 +57,7 @@ enum SangNomAlgoType
     SNAT_NEW = 1    // more accurate one, but slower
 };
 
-static inline int VapourSynthFieldBasedToSangNomOrder(int fieldbased)
+static inline int VapourSynthFieldBasedToSangNomOrder(int64_t fieldbased)
 {
     if (fieldbased == 2) // tff
         return SNOT_SFR_KT;
@@ -91,6 +94,22 @@ enum class BorderMode
 ///////////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////
 
+#ifdef VS_TARGET_CPU_X86
+
+static inline __m128i _mm_packus_epi32_sse2(const __m128i &v1, const __m128i &v2)
+{
+    __m128i ones = _mm_cmpeq_epi8(_mm_setzero_si128(), _mm_setzero_si128());
+    __m128i subMask32 = _mm_srli_epi32(_mm_slli_epi32(ones, 31), 16);
+    __m128i addMask16 = _mm_slli_epi16(ones, 15);
+    return _mm_add_epi16(_mm_packs_epi32(_mm_sub_epi32(v1, subMask32), _mm_sub_epi32(v2, subMask32)), addMask16);
+}
+
+static inline __m128i convSign16(const __m128i &v1)
+{
+    alignas(sizeof(__m128i)) static const uint16_t signMask16[8] = { 0x8000, 0x8000, 0x8000, 0x8000, 0x8000, 0x8000, 0x8000, 0x8000 };
+    return _mm_xor_si128(v1, _mm_load_si128(reinterpret_cast<const __m128i*>(signMask16)));
+}
+
 template <typename T, bool aligned>
 static inline __m128i sse_load_si128(const T *ptr)
 {
@@ -116,7 +135,8 @@ static inline void sse_store_si128(T *ptr, __m128i val)
 }
 
 template <typename T, bool aligned>
-static inline void sse_store_ps(T *ptr, __m128 val) {
+static inline void sse_store_ps(T *ptr, __m128 val)
+{
     if (aligned)
         _mm_store_ps(ptr, val);
     _mm_storeu_ps(ptr, val);
@@ -163,9 +183,8 @@ static inline __m128 sse_load_1_to_left_ps(const T *ptr)
     if (isBorder) {
 
         if (sizeof(T) == 4) {
-            uint32_t imm8 = (2 << 6) + (1 << 4) + (0 << 2) + (0 << 0);
             auto val = sse_load_ps<T, alignedLoad>(ptr);
-            return _mm_shuffle_ps(val, val, imm8);
+            return _mm_shuffle_ps(val, val, _MM_SHUFFLE(2, 1, 0, 0));
         }
     }
 
@@ -216,9 +235,8 @@ static inline __m128 sse_load_2_to_left_ps(const T *ptr)
     if (isBorder) {
 
         if (sizeof(T) == 4) {
-            uint32_t imm8 = (1 << 6) + (0 << 4) + (0 << 2) + (0 << 0);
             auto val = sse_load_ps<T, alignedLoad>(ptr);
-            return _mm_shuffle_ps(val, val, imm8);
+            return _mm_shuffle_ps(val, val, _MM_SHUFFLE(1, 0, 0, 0));
         }
     }
 
@@ -321,9 +339,8 @@ static inline __m128 sse_load_1_to_right_ps(const T *ptr)
     if (isBorder) {
 
         if (sizeof(T) == 4) {
-            uint32_t imm8 = (3 << 6) + (3 << 4) + (2 << 2) + (1 << 0);
             auto val = sse_load_ps<T, alignedLoad>(ptr);
-            return _mm_shuffle_ps(val, val, imm8);
+            return _mm_shuffle_ps(val, val, _MM_SHUFFLE(3, 3, 2, 1));
         }
     }
 
@@ -374,9 +391,8 @@ static inline __m128 sse_load_2_to_right_ps(const T *ptr)
     if (isBorder) {
 
         if (sizeof(T) == 4) {
-            uint32_t imm8 = (3 << 6) + (3 << 4) + (3 << 2) + (2 << 0);
             auto val = sse_load_ps<T, alignedLoad>(ptr);
-            return _mm_shuffle_ps(val, val, imm8);
+            return _mm_shuffle_ps(val, val, _MM_SHUFFLE(3, 3, 3, 2));
         }
     }
 
@@ -534,7 +550,7 @@ inline __m128i calculateSangNom_sse<uint16_t, __m128i>(const __m128i& p1, const 
     sum_lo = _mm_srli_epi32(sum_lo, 3); // (p1 * 4 + p2 * 5 - p3) / 8
     sum_hi = _mm_srli_epi32(sum_hi, 3);
 
-    return _mm_packus_epi32(sum_lo, sum_hi);
+    return _mm_packus_epi32_sse2(sum_lo, sum_hi);
 }
 
 template <>
@@ -589,6 +605,8 @@ inline __m128 getAvgIfMinBuf<float, __m128>(const __m128& a1, const __m128& a2, 
     return _mm_or_ps(avgPart, accPart);
 }
 
+#endif
+
 ///////////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////
@@ -601,7 +619,7 @@ static inline IType loadPixel(const T *srcp, int curPos, int offset, int width)
     if (reqPos >= 0 && reqPos < width)
         return srcp[reqPos];
     if (reqPos >= 0)
-        return srcp[width-1];
+        return srcp[width - 1];
     return srcp[0];
 }
 
@@ -637,6 +655,8 @@ static inline void copyField(const T *srcp, const int srcStride, T *dstp, const 
         vs_bitblt(dstp, dstStride, srcp + srcStride, srcStride, w, 1);
     }
 }
+
+#ifdef VS_TARGET_CPU_X86
 
 template <BorderMode border, bool alignedLoad, bool alignedStore>
 static inline void prepareBuffersLine_sse(const uint8_t *srcp, const uint8_t *srcpn2, uint8_t *buffers[TOTAL_BUFFERS], const int w, const int bufferOffset)
@@ -783,6 +803,8 @@ static inline void prepareBuffers_sse(const T *srcp, const int srcStride, const 
     }
 }
 
+#endif
+
 template <typename T, typename IType>
 static inline void prepareBuffers_c(const T *srcp, const int srcStride, const int w, const int h, const int bufferStride, T *buffers[TOTAL_BUFFERS])
 {
@@ -832,6 +854,8 @@ static inline void prepareBuffers_c(const T *srcp, const int srcStride, const in
         bufferOffset += bufferStride;
     }
 }
+
+#ifdef VS_TARGET_CPU_X86
 
 template <BorderMode border>
 static inline void processBuffersBlock_sse(uint8_t *bufferp, const int16_t *bufferTemp, const int x)
@@ -920,7 +944,7 @@ static inline void processBuffersBlock_sse(uint16_t *bufferp, const int32_t *buf
     sum_hi = _mm_srli_epi32(sum_hi, 4);
 
 
-    auto result = _mm_packus_epi32(sum_lo, sum_hi);
+    auto result = _mm_packus_epi32_sse2(sum_lo, sum_hi);
 
     sse_store_si128<uint16_t, true>(bufferp + x, result);
 }
@@ -1118,6 +1142,8 @@ static inline void processBuffers_new_sse(float *bufferp, float *bufferTemp, con
     }
 }
 
+#endif
+
 template <typename T, typename IType>
 static inline void processBuffers_new_c(T *bufferp, IType *bufferTemp, const int bufferStride, const int bufferHeight)
 {
@@ -1160,6 +1186,8 @@ static inline void processBuffers_new_c(T *bufferp, IType *bufferTemp, const int
         bufferTempc += bufferStride;
     }
 }
+
+#ifdef VS_TARGET_CPU_X86
 
 static inline void processBuffers_org_sse(uint8_t *bufferp, int16_t *bufferTemp, const int bufferStride, const int bufferHeight)
 {
@@ -1264,6 +1292,8 @@ static inline void processBuffers_org_sse(uint16_t *bufferp, int32_t *bufferTemp
     }
 }
 
+#endif
+
 template <typename T, typename IType>
 static inline void processBuffers_org_c(T *bufferp, IType *bufferTemp, const int bufferStride, const int bufferHeight)
 {
@@ -1296,6 +1326,8 @@ static inline void processBuffers_org_c(T *bufferp, IType *bufferTemp, const int
         bufferpn1 += bufferStride;
     }
 }
+
+#ifdef VS_TARGET_CPU_X86
 
 template <BorderMode border, bool alignedLoad, bool alignedLoadBuffer, bool alignedStore>
 static inline void finalizePlaneLine_sse(const uint8_t *srcp, const uint8_t *srcpn2, uint8_t *dstpn, uint8_t *buffers[TOTAL_BUFFERS], int bufferOffset, const int w, const int pixelPerInst, const float aaf)
@@ -1418,14 +1450,15 @@ static inline void finalizePlaneLine_sse(const uint16_t *srcp, const uint16_t *s
         auto buf7 = sse_load_si128<uint16_t, alignedLoadBuffer>(buffers[ADIFF_P2_M2] + bufferOffset + x);
         auto buf8 = sse_load_si128<uint16_t, alignedLoadBuffer>(buffers[ADIFF_P3_M3] + bufferOffset + x);
 
-        auto minBuf = _mm_min_epu16(buf0, buf1);
-        minBuf = _mm_min_epu16(minBuf, buf2);
-        minBuf = _mm_min_epu16(minBuf, buf3);
-        minBuf = _mm_min_epu16(minBuf, buf4);
-        minBuf = _mm_min_epu16(minBuf, buf5);
-        minBuf = _mm_min_epu16(minBuf, buf6);
-        minBuf = _mm_min_epu16(minBuf, buf7);
-        minBuf = _mm_min_epu16(minBuf, buf8);
+        auto minBuf = _mm_min_epi16(convSign16(buf0), convSign16(buf1));
+        minBuf = _mm_min_epi16(minBuf, convSign16(buf2));
+        minBuf = _mm_min_epi16(minBuf, convSign16(buf3));
+        minBuf = _mm_min_epi16(minBuf, convSign16(buf4));
+        minBuf = _mm_min_epi16(minBuf, convSign16(buf5));
+        minBuf = _mm_min_epi16(minBuf, convSign16(buf6));
+        minBuf = _mm_min_epi16(minBuf, convSign16(buf7));
+        minBuf = _mm_min_epi16(minBuf, convSign16(buf8));
+        minBuf = convSign16(minBuf);
 
         auto minBufAvg = _mm_setzero_si128();
 
@@ -1568,6 +1601,8 @@ static inline void finalizePlane_sse(const T *srcp, const int srcStride, T *dstp
     }
 }
 
+#endif
+
 template <typename T, typename IType>
 static inline void finalizePlane_c(const T *srcp, const int srcStride, T *dstp, const int dstStride, const int w, const int h, const int bufferStride, const T aaf, T *buffers[TOTAL_BUFFERS])
 {
@@ -1646,6 +1681,8 @@ static inline void finalizePlane_c(const T *srcp, const int srcStride, T *dstp, 
     }
 }
 
+#ifdef VS_TARGET_CPU_X86
+
 template <typename T, typename IType>
 static inline void sangnom_sse(const T *srcp, const int srcStride, T *dstp, const int dstStride, const int w, const int h, SangNomData *d, int plane, T *buffers[TOTAL_BUFFERS], IType *bufferTemp)
 {
@@ -1663,6 +1700,8 @@ static inline void sangnom_sse(const T *srcp, const int srcStride, T *dstp, cons
 
     finalizePlane_sse<T, IType>(srcp + d->offset * srcStride, srcStride, dstp + d->offset * dstStride, dstStride, w, h, d->bufferStride, d->aaf, buffers);
 }
+
+#endif
 
 template <typename T, typename IType>
 static inline void sangnom_c(const T *srcp, const int srcStride, T *dstp, const int dstStride, const int w, const int h, SangNomData *d, int plane, T *buffers[TOTAL_BUFFERS], IType *bufferTemp)
@@ -1744,9 +1783,17 @@ static const VSFrameRef *VS_CC sangnomGetFrame(int n, int activationReason, void
 
             if (d->vi->format->sampleType == stInteger) {
                 if (d->vi->format->bitsPerSample == 8)
+#ifdef VS_TARGET_CPU_X86
                     sangnom_sse<uint8_t, int16_t>(srcp, srcStride, dstp, dstStride, width, height, d, plane, reinterpret_cast<uint8_t**>(buffers), reinterpret_cast<int16_t*>(bufferTemp));
+#else
+                    sangnom_c<uint8_t, int16_t>(srcp, srcStride, dstp, dstStride, width, height, d, plane, reinterpret_cast<uint8_t**>(buffers), reinterpret_cast<int16_t*>(bufferTemp));
+#endif
                 else
+#ifdef VS_TARGET_CPU_X86
                     sangnom_sse<uint16_t, int32_t>(reinterpret_cast<const uint16_t*>(srcp), srcStride, reinterpret_cast<uint16_t*>(dstp), dstStride, width, height, d, plane, reinterpret_cast<uint16_t**>(buffers), reinterpret_cast<int32_t*>(bufferTemp));
+#else
+                    sangnom_c<uint16_t, int32_t>(reinterpret_cast<const uint16_t*>(srcp), srcStride, reinterpret_cast<uint16_t*>(dstp), dstStride, width, height, d, plane, reinterpret_cast<uint16_t**>(buffers), reinterpret_cast<int32_t*>(bufferTemp));
+#endif
             } else {
                 sangnom_c<float, float>(reinterpret_cast<const float*>(srcp), srcStride, reinterpret_cast<float*>(dstp), dstStride, width, height, d, plane, reinterpret_cast<float**>(buffers), reinterpret_cast<float*>(bufferTemp));
             }
@@ -1779,16 +1826,16 @@ static void VS_CC sangnomCreate(const VSMap *in, VSMap *out, void *userData, VSC
 
     try {
 
-        d->order = vsapi->propGetInt(in, "order", 0, &err);
+        d->order = int64ToIntS(vsapi->propGetInt(in, "order", 0, &err));
         if (err)
             d->order = VapourSynthFieldBasedToSangNomOrder(vsapi->propGetInt(in, "_FieldBased", 0, &err));
         if (err)
             d->order = SNOT_SFR_KT;
 
-        if (d->order < 0  || d->order > 2)
+        if (d->order < 0 || d->order > 2)
             throw std::string("order must be 0 ... 2");
 
-        d->aa = vsapi->propGetInt(in, "aa", 0, &err);
+        d->aa = int64ToIntS(vsapi->propGetInt(in, "aa", 0, &err));
         if (err) d->aa = 48;
 
         if (d->aa < 0 || d->aa > 128)
@@ -1800,7 +1847,7 @@ static void VS_CC sangnomCreate(const VSMap *in, VSMap *out, void *userData, VSC
             d->aaf = (d->aa * 21.0 / 16.0) / 256.0;
 
 
-        d->algo = vsapi->propGetInt(in, "algo", 0, &err);
+        d->algo = int64ToIntS(vsapi->propGetInt(in, "algo", 0, &err));
         if (err) d->algo = SNAT_ORG;
 
         if (d->algo != SNAT_ORG && d->algo != SNAT_NEW)
@@ -1818,7 +1865,7 @@ static void VS_CC sangnomCreate(const VSMap *in, VSMap *out, void *userData, VSC
             }
         } else {
             for (int i = 0; i < m; ++i) {
-                int p = vsapi->propGetInt(in, "planes", i, &err);
+                int64_t p = vsapi->propGetInt(in, "planes", i, &err);
                 if (p < 0 || p > d->vi->format->numPlanes - 1)
                     throw std::string("planes index out of bound");
                 d->planes[p] = true;
@@ -1847,9 +1894,9 @@ VS_EXTERNAL_API(void) VapourSynthPluginInit(VSConfigPlugin configFunc, VSRegiste
 {
     configFunc("com.mio.sangnom", "sangnom", "VapourSynth SangNom", VAPOURSYNTH_API_VERSION, 1, plugin);
     registerFunc("SangNom", "clip:clip;"
-                        "order:int:opt;"
-                        "aa:int:opt;"
-                        "algo:int:opt;"
-                        "planes:int[]:opt;",
-                        sangnomCreate, nullptr, plugin);
+        "order:int:opt;"
+        "aa:int:opt;"
+        "algo:int:opt;"
+        "planes:int[]:opt;",
+        sangnomCreate, nullptr, plugin);
 }

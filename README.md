@@ -6,7 +6,7 @@
 ## Build ##
 
 *   compiler with c++11 support
-*   CPU with SSE4.1 support
+*   CPU with SSE2 support
 
 ## Usage ##
 
