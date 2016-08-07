@@ -837,16 +837,16 @@ static inline void prepareBuffers_c(const T *srcp, const int srcStride, const in
             const IType backwardSangNom1 = calculateSangNom<T, IType>(currLineP1, currLine, currLineM1);
             const IType backwardSangNom2 = calculateSangNom<T, IType>(nextLineM1, nextLine, nextLineP1);
 
-            buffers[ADIFF_M3_P3][bufferOffset + x] = absDiff(currLineM3, nextLineP3);
-            buffers[ADIFF_M2_P2][bufferOffset + x] = absDiff(currLineM2, nextLineP2);
-            buffers[ADIFF_M1_P1][bufferOffset + x] = absDiff(currLineM1, nextLineP1);
-            buffers[ADIFF_P0_M0][bufferOffset + x] = absDiff(currLine, nextLine);
-            buffers[ADIFF_P1_M1][bufferOffset + x] = absDiff(currLineP1, nextLineM1);
-            buffers[ADIFF_P2_M2][bufferOffset + x] = absDiff(currLineP2, nextLineM2);
-            buffers[ADIFF_P3_M3][bufferOffset + x] = absDiff(currLineP3, nextLineM3);
+            buffers[ADIFF_M3_P3][bufferOffset + x] = static_cast<T>(absDiff(currLineM3, nextLineP3));
+            buffers[ADIFF_M2_P2][bufferOffset + x] = static_cast<T>(absDiff(currLineM2, nextLineP2));
+            buffers[ADIFF_M1_P1][bufferOffset + x] = static_cast<T>(absDiff(currLineM1, nextLineP1));
+            buffers[ADIFF_P0_M0][bufferOffset + x] = static_cast<T>(absDiff(currLine, nextLine));
+            buffers[ADIFF_P1_M1][bufferOffset + x] = static_cast<T>(absDiff(currLineP1, nextLineM1));
+            buffers[ADIFF_P2_M2][bufferOffset + x] = static_cast<T>(absDiff(currLineP2, nextLineM2));
+            buffers[ADIFF_P3_M3][bufferOffset + x] = static_cast<T>(absDiff(currLineP3, nextLineM3));
 
-            buffers[SG_FORWARD][bufferOffset + x] = absDiff(forwardSangNom1, forwardSangNom2);
-            buffers[SG_REVERSE][bufferOffset + x] = absDiff(backwardSangNom1, backwardSangNom2);
+            buffers[SG_FORWARD][bufferOffset + x] = static_cast<T>(absDiff(forwardSangNom1, forwardSangNom2));
+            buffers[SG_REVERSE][bufferOffset + x] = static_cast<T>(absDiff(backwardSangNom1, backwardSangNom2));
         }
 
         srcp += srcStride * 2;
@@ -1842,9 +1842,9 @@ static void VS_CC sangnomCreate(const VSMap *in, VSMap *out, void *userData, VSC
             throw std::string("aa must be 0 ... 128");
         // tweak aa value for different format
         if (d->vi->format->sampleType == stInteger)
-            d->aaf = (d->aa * 21.0 / 16.0) * (1 << (d->vi->format->bitsPerSample - 8));
+            d->aaf = (d->aa * 21.0f / 16.0f) * (1 << (d->vi->format->bitsPerSample - 8));
         else
-            d->aaf = (d->aa * 21.0 / 16.0) / 256.0;
+            d->aaf = (d->aa * 21.0f / 16.0f) / 256.0f;
 
 
         d->algo = int64ToIntS(vsapi->propGetInt(in, "algo", 0, &err));
