@@ -7,6 +7,17 @@
 
 *   compiler with c++11 support
 *   CPU with SSE2 support
+***
+
+    g++ src/sangnom.cpp -o libsangnom.so -std=c++1y -O3 -shared -I/path/to/vapoursynth/headers -DVS_TARGET_CPU_X86
+
+*   build on linux (-DVS_TARGET_CPU_X86 enables the SSE2 path, remove it if you want to use C path)
+***
+
+    g++ src/sangnom.cpp -o libsangnom.dll -std=c++1y -O3 -shared -static -I/path/to/vapoursynth/headers -DVS_TARGET_CPU_X86
+
+*   build on windows (-DVS_TARGET_CPU_X86 enables the SSE2 path, remove it if you want to use C path)
+***
 
 ## Usage ##
 
@@ -15,14 +26,19 @@
 *   the default setting, interpolates bottom field for all planes.
 ***
 
+    sangnom.SangNom(src, order=1, aa=48, algo=0, planes=[0]).SangNom(order=1, aa=0, algo=0, planes=[1, 2])
+
+*   this simulates the default setting of AVISynth SangNom2
+***
+
 
 ## Parameter ##
 
     sangnom.SangNom(clip clip[, int order=1, int aa=48, int algo=0, int[] planes=[0, 1, 2]])
 
 *   clip: the src clip
-    *   8..16 bit integer support, 32 bit float support
-    *   all colorfamily support
+    *   8..16 bit integer, 32 bit float support
+    *   all color family support
 
 ***
 *   order: order of deinterlacing
@@ -35,7 +51,7 @@
 *   aa: the strength of anti-aliasing, this value is considered in 8 bit clip
     *   default: 48
     *   range: 0 ... 128
-    *   note: in AVISynth SangNom2, the default is aa=48, aac=0, but in this plugin default aa=48 for all planes
+    *   note: in AVISynth SangNom2, the default is aa=48, aac=0, but in this version the default is aa=48 for all planes
 
 ***
 *   algo: the algorithm which to use
