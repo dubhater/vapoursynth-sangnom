@@ -26,7 +26,7 @@
 *   the default setting, interpolates bottom field for all planes.
 ***
 
-    sangnom.SangNom(src, order=1, aa=48, algo=0, planes=[0]).SangNom(order=1, aa=0, algo=0, planes=[1, 2])
+    sangnom.SangNom(src, order=1, aa=48, algo=0, planes=[0]).sangnom.SangNom(order=1, aa=0, algo=0, planes=[1, 2])
 
 *   this simulates the default setting of AVISynth SangNom2
 ***
