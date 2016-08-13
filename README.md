@@ -9,9 +9,12 @@
 *   CPU with SSE2 support
 ***
 
-    g++ src/sangnom.cpp -o libsangnom.so -std=c++1y -O3 -shared -I/path/to/vapoursynth/headers -DVS_TARGET_CPU_X86
+    ./autogen.sh
+    ./configure
+    make
+    make install
 
-*   build on linux (-DVS_TARGET_CPU_X86 enables the SSE2 path, remove it if you want to use C path)
+*   build on linux
 ***
 
     g++ src/sangnom.cpp -o libsangnom.dll -std=c++1y -O3 -shared -static -I/path/to/vapoursynth/headers -DVS_TARGET_CPU_X86
