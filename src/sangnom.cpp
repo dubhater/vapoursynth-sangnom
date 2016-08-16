@@ -1,13 +1,11 @@
 
 /**
- *  SangNom
- *
- *  a rewrite version of AVISynth SangNom2
+ *  SangNom - VapourSynth Single Field Deinterlacer
  *
  *  Copyright (c) 2016 james1201
  *  Copyright (c) 2013 Victor Efimov
- *  This project is licensed under the MIT license. Binaries are GPL v2.
  *
+ *  This project is licensed under the MIT license. Binaries are GPL v2.
  **/
 
 #include <VapourSynth.h>
@@ -2012,7 +2010,7 @@ static void VS_CC sangnomCreate(const VSMap *in, VSMap *out, void *userData, VSC
 
 VS_EXTERNAL_API(void) VapourSynthPluginInit(VSConfigPlugin configFunc, VSRegisterFunction registerFunc, VSPlugin *plugin)
 {
-    configFunc("com.mio.sangnom", "sangnom", "VapourSynth SangNom", VAPOURSYNTH_API_VERSION, 1, plugin);
+    configFunc("com.mio.sangnom", "sangnom", "VapourSynth Single Field Deinterlacer", VAPOURSYNTH_API_VERSION, 1, plugin);
     registerFunc("SangNom", "clip:clip;"
         "order:int:opt;"
         "aa:int:opt;"

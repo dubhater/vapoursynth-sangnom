@@ -1,4 +1,4 @@
-# SangNom - VapourSynth SangNom #
+# SangNom - VapourSynth Single Field Deinterlacer #
 
 *   SangNom is a single field deinterlacer using edge-directed interpolation but nowadays it's mainly used in anti-aliasing scripts.
 *   This is a rewrite version of AVISynth SangNom2, and support more formats.
@@ -6,7 +6,7 @@
 ## Build ##
 
 *   compiler with c++11 support
-*   CPU with SSE2 support
+*   -DVS_TARGET_CPU_X86 can enables the SSE2 code path which has a large benefit on performance
 ***
 
     ./autogen.sh
@@ -19,7 +19,7 @@
 
     g++ src/sangnom.cpp -o libsangnom.dll -std=c++1y -O3 -shared -static -I/path/to/vapoursynth/headers -DVS_TARGET_CPU_X86
 
-*   build on windows (-DVS_TARGET_CPU_X86 enables the SSE2 path, remove it if you want to use C path)
+*   build on windows
 ***
 
 ## Usage ##
@@ -70,10 +70,7 @@
 
 ## License ##
 
-    SangNom
-
-    a rewrite version of AVISynth SangNom2
-
+    SangNom - VapourSynth Single Field Deinterlacer
 
     Copyright (c) 2016 james1201
     Copyright (c) 2013 Victor Efimov
