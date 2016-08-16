@@ -658,9 +658,9 @@ static inline void copyField(const T *srcp, const int srcStride, T *dstp, const 
 template <BorderMode border, bool alignedLoad, bool alignedStore>
 static inline void prepareBuffersLine_sse(const uint8_t *srcp, const uint8_t *srcpn2, uint8_t *buffers[TOTAL_BUFFERS], const int w, const int bufferOffset)
 {
-    constexpr int pixelPerInst = 16;
+    constexpr int pixelStep = sseBytes / sizeof(uint8_t);
 
-    for (int x = 0; x < w; x += pixelPerInst) {
+    for (int x = 0; x < w; x += pixelStep) {
 
         auto currLineM3 = sse_load_3_to_left_si128<uint8_t, border == BorderMode::LEFT, alignedLoad>(srcp + x);
         auto currLineM2 = sse_load_2_to_left_si128<uint8_t, border == BorderMode::LEFT, alignedLoad>(srcp + x);
@@ -699,9 +699,9 @@ static inline void prepareBuffersLine_sse(const uint8_t *srcp, const uint8_t *sr
 template <BorderMode border, bool alignedLoad, bool alignedStore>
 static inline void prepareBuffersLine_sse(const uint16_t *srcp, const uint16_t *srcpn2, uint16_t *buffers[TOTAL_BUFFERS], const int w, const int bufferOffset)
 {
-    constexpr int pixelPerInst = 8;
+    constexpr int pixelStep = sseBytes / sizeof(uint16_t);
 
-    for (int x = 0; x < w; x += pixelPerInst) {
+    for (int x = 0; x < w; x += pixelStep) {
 
         auto currLineM3 = sse_load_3_to_left_si128<uint16_t, border == BorderMode::LEFT, alignedLoad>(srcp + x);
         auto currLineM2 = sse_load_2_to_left_si128<uint16_t, border == BorderMode::LEFT, alignedLoad>(srcp + x);
@@ -740,9 +740,9 @@ static inline void prepareBuffersLine_sse(const uint16_t *srcp, const uint16_t *
 template <BorderMode border, bool alignedLoad, bool alignedStore>
 static inline void prepareBuffersLine_sse(const float *srcp, const float *srcpn2, float *buffers[TOTAL_BUFFERS], const int w, const int bufferOffset)
 {
-    constexpr int pixelPerInst = 4;
+    constexpr int pixelStep = sseBytes / sizeof(float);
 
-    for (int x = 0; x < w; x += pixelPerInst) {
+    for (int x = 0; x < w; x += pixelStep) {
 
         auto currLineM3 = sse_load_3_to_left_ps<float, border == BorderMode::LEFT, alignedLoad>(srcp + x);
         auto currLineM2 = sse_load_2_to_left_ps<float, border == BorderMode::LEFT, alignedLoad>(srcp + x);
@@ -785,14 +785,14 @@ static inline void prepareBuffers_sse(const T *srcp, const int srcStride, const 
 
     int bufferOffset = bufferStride;
 
-    constexpr int pixelPerInst = sseBytes / sizeof(T);
-    const int wMod = (w + pixelPerInst - 1) & ~(pixelPerInst - 1);
+    constexpr int pixelStep = sseBytes / sizeof(T);
+    const int wMod = (w + pixelStep - 1) & ~(pixelStep - 1);
 
     for (int y = 0; y < h / 2 - 1; ++y) {
 
-        prepareBuffersLine_sse<BorderMode::LEFT, true, true>(srcp, srcpn2, buffers, pixelPerInst, bufferOffset);
-        prepareBuffersLine_sse<BorderMode::NONE, true, true>(srcp + pixelPerInst, srcpn2 + pixelPerInst, buffers, wMod - pixelPerInst, bufferOffset + pixelPerInst);
-        prepareBuffersLine_sse<BorderMode::RIGHT, false, false>(srcp + w - pixelPerInst, srcpn2 + w - pixelPerInst, buffers, pixelPerInst, bufferOffset + w - pixelPerInst);
+        prepareBuffersLine_sse<BorderMode::LEFT, true, true>(srcp, srcpn2, buffers, pixelStep, bufferOffset);
+        prepareBuffersLine_sse<BorderMode::NONE, true, true>(srcp + pixelStep, srcpn2 + pixelStep, buffers, wMod - pixelStep, bufferOffset + pixelStep);
+        prepareBuffersLine_sse<BorderMode::RIGHT, false, false>(srcp + w - pixelStep, srcpn2 + w - pixelStep, buffers, pixelStep, bufferOffset + w - pixelStep);
 
         srcp += srcStride * 2;
         srcpn2 += srcStride * 2;
@@ -857,7 +857,7 @@ static inline void prepareBuffers_c(const T *srcp, const int srcStride, const in
 template <BorderMode border>
 static inline void processBuffersBlock_sse(uint8_t *bufferp, const int16_t *bufferTemp, const int x)
 {
-    constexpr int pixelPerInstIType = 8;
+    constexpr int pixelStep2 = sseBytes / sizeof(int16_t);
 
     auto currLineM3_lo = sse_load_3_to_left_si128<int16_t, border == BorderMode::LEFT, true>(bufferTemp + x);
     auto currLineM2_lo = sse_load_2_to_left_si128<int16_t, border == BorderMode::LEFT, true>(bufferTemp + x);
@@ -867,13 +867,13 @@ static inline void processBuffersBlock_sse(uint8_t *bufferp, const int16_t *buff
     auto currLineP2_lo = sse_load_2_to_right_si128<int16_t, false, true>(bufferTemp + x);
     auto currLineP3_lo = sse_load_3_to_right_si128<int16_t, false, true>(bufferTemp + x);
 
-    auto currLineM3_hi = sse_load_3_to_left_si128<int16_t, false, true>(bufferTemp + x + pixelPerInstIType);
-    auto currLineM2_hi = sse_load_2_to_left_si128<int16_t, false, true>(bufferTemp + x + pixelPerInstIType);
-    auto currLineM1_hi = sse_load_1_to_left_si128<int16_t, false, true>(bufferTemp + x + pixelPerInstIType);
-    auto currLine_hi   = sse_load_si128<int16_t, true>(bufferTemp + x + pixelPerInstIType);
-    auto currLineP1_hi = sse_load_1_to_right_si128<int16_t, border == BorderMode::RIGHT, true>(bufferTemp + x + pixelPerInstIType);
-    auto currLineP2_hi = sse_load_2_to_right_si128<int16_t, border == BorderMode::RIGHT, true>(bufferTemp + x + pixelPerInstIType);
-    auto currLineP3_hi = sse_load_3_to_right_si128<int16_t, border == BorderMode::RIGHT, true>(bufferTemp + x + pixelPerInstIType);
+    auto currLineM3_hi = sse_load_3_to_left_si128<int16_t, false, true>(bufferTemp + x + pixelStep2);
+    auto currLineM2_hi = sse_load_2_to_left_si128<int16_t, false, true>(bufferTemp + x + pixelStep2);
+    auto currLineM1_hi = sse_load_1_to_left_si128<int16_t, false, true>(bufferTemp + x + pixelStep2);
+    auto currLine_hi   = sse_load_si128<int16_t, true>(bufferTemp + x + pixelStep2);
+    auto currLineP1_hi = sse_load_1_to_right_si128<int16_t, border == BorderMode::RIGHT, true>(bufferTemp + x + pixelStep2);
+    auto currLineP2_hi = sse_load_2_to_right_si128<int16_t, border == BorderMode::RIGHT, true>(bufferTemp + x + pixelStep2);
+    auto currLineP3_hi = sse_load_3_to_right_si128<int16_t, border == BorderMode::RIGHT, true>(bufferTemp + x + pixelStep2);
 
     auto sum_lo = _mm_add_epi16(currLineM3_lo, currLineM2_lo);
     sum_lo = _mm_add_epi16(sum_lo, currLineM1_lo);
@@ -903,7 +903,7 @@ static inline void processBuffersBlock_sse(uint8_t *bufferp, const int16_t *buff
 template <BorderMode border>
 static inline void processBuffersBlock_sse(uint16_t *bufferp, const int32_t *bufferTemp, const int x)
 {
-    constexpr int pixelPerInstIType = 4;
+    constexpr int pixelStep2 = sseBytes / sizeof(int32_t);
 
     auto currLineM3_lo = sse_load_3_to_left_si128<int32_t, border == BorderMode::LEFT, true>(bufferTemp + x);
     auto currLineM2_lo = sse_load_2_to_left_si128<int32_t, border == BorderMode::LEFT, true>(bufferTemp + x);
@@ -913,13 +913,13 @@ static inline void processBuffersBlock_sse(uint16_t *bufferp, const int32_t *buf
     auto currLineP2_lo = sse_load_2_to_right_si128<int32_t, false, true>(bufferTemp + x);
     auto currLineP3_lo = sse_load_3_to_right_si128<int32_t, false, true>(bufferTemp + x);
 
-    auto currLineM3_hi = sse_load_3_to_left_si128<int32_t, false, true>(bufferTemp + x + pixelPerInstIType);
-    auto currLineM2_hi = sse_load_2_to_left_si128<int32_t, false, true>(bufferTemp + x + pixelPerInstIType);
-    auto currLineM1_hi = sse_load_1_to_left_si128<int32_t, false, true>(bufferTemp + x + pixelPerInstIType);
-    auto currLine_hi   = sse_load_si128<int32_t, true>(bufferTemp + x + pixelPerInstIType);
-    auto currLineP1_hi = sse_load_1_to_right_si128<int32_t, border == BorderMode::RIGHT, true>(bufferTemp + x + pixelPerInstIType);
-    auto currLineP2_hi = sse_load_2_to_right_si128<int32_t, border == BorderMode::RIGHT, true>(bufferTemp + x + pixelPerInstIType);
-    auto currLineP3_hi = sse_load_3_to_right_si128<int32_t, border == BorderMode::RIGHT, true>(bufferTemp + x + pixelPerInstIType);
+    auto currLineM3_hi = sse_load_3_to_left_si128<int32_t, false, true>(bufferTemp + x + pixelStep2);
+    auto currLineM2_hi = sse_load_2_to_left_si128<int32_t, false, true>(bufferTemp + x + pixelStep2);
+    auto currLineM1_hi = sse_load_1_to_left_si128<int32_t, false, true>(bufferTemp + x + pixelStep2);
+    auto currLine_hi   = sse_load_si128<int32_t, true>(bufferTemp + x + pixelStep2);
+    auto currLineP1_hi = sse_load_1_to_right_si128<int32_t, border == BorderMode::RIGHT, true>(bufferTemp + x + pixelStep2);
+    auto currLineP2_hi = sse_load_2_to_right_si128<int32_t, border == BorderMode::RIGHT, true>(bufferTemp + x + pixelStep2);
+    auto currLineP3_hi = sse_load_3_to_right_si128<int32_t, border == BorderMode::RIGHT, true>(bufferTemp + x + pixelStep2);
 
     auto sum_lo = _mm_add_epi32(currLineM3_lo, currLineM2_lo);
     sum_lo = _mm_add_epi32(sum_lo, currLineM1_lo);
@@ -978,14 +978,14 @@ static inline void processBuffers_new_sse(uint8_t *bufferp, int16_t *bufferTemp,
     auto bufferpn1 = bufferpc0 + bufferStride;
     auto bufferTempc = bufferTemp + bufferStride;
 
-    constexpr int pixelPerInst = sseBytes / sizeof(uint8_t);
-    constexpr int pixelPerInstIType = sseBytes / sizeof(int16_t);
+    constexpr int pixelStep = sseBytes / sizeof(uint8_t);
+    constexpr int pixelStep2 = sseBytes / sizeof(int16_t);
 
     for (int y = 0; y < bufferHeight - 1; ++y) {
 
         const auto const_0 = _mm_setzero_si128();
 
-        for (int x = 0; x < bufferStride; x += pixelPerInst) {
+        for (int x = 0; x < bufferStride; x += pixelStep) {
 
             auto srcp1 = sse_load_si128<uint8_t, true>(bufferpp1 + x);
             auto srcc0 = sse_load_si128<uint8_t, true>(bufferpc0 + x);
@@ -1006,7 +1006,7 @@ static inline void processBuffers_new_sse(uint8_t *bufferp, int16_t *bufferTemp,
             sum_hi = _mm_add_epi16(sum_hi, srcn1_hi);
 
             sse_store_si128<int16_t, true>(bufferTempc + x, sum_lo);
-            sse_store_si128<int16_t, true>(bufferTempc + x + pixelPerInstIType, sum_hi);
+            sse_store_si128<int16_t, true>(bufferTempc + x + pixelStep2, sum_hi);
         }
 
         bufferpc0 += bufferStride;
@@ -1022,10 +1022,10 @@ static inline void processBuffers_new_sse(uint8_t *bufferp, int16_t *bufferTemp,
 
         processBuffersBlock_sse<BorderMode::LEFT>(bufferpc0, bufferTempc, 0);
 
-        for (int x = pixelPerInst; x < bufferStride - pixelPerInst; x += pixelPerInst)
+        for (int x = pixelStep; x < bufferStride - pixelStep; x += pixelStep)
             processBuffersBlock_sse<BorderMode::NONE>(bufferpc0, bufferTempc, x);
 
-        processBuffersBlock_sse<BorderMode::RIGHT>(bufferpc0, bufferTempc, bufferStride - pixelPerInst);
+        processBuffersBlock_sse<BorderMode::RIGHT>(bufferpc0, bufferTempc, bufferStride - pixelStep);
 
         bufferpc0 += bufferStride;
         bufferTempc += bufferStride;
@@ -1039,14 +1039,14 @@ static inline void processBuffers_new_sse(uint16_t *bufferp, int32_t *bufferTemp
     auto bufferpn1 = bufferpc0 + bufferStride;
     auto bufferTempc = bufferTemp + bufferStride;
 
-    constexpr int pixelPerInst = sseBytes / sizeof(uint16_t);
-    constexpr int pixelPerInstIType = sseBytes / sizeof(int32_t);
+    constexpr int pixelStep = sseBytes / sizeof(uint16_t);
+    constexpr int pixelStep2 = sseBytes / sizeof(int32_t);
 
     for (int y = 0; y < bufferHeight - 1; ++y) {
 
         const auto const_0 = _mm_setzero_si128();
 
-        for (int x = 0; x < bufferStride; x += pixelPerInst) {
+        for (int x = 0; x < bufferStride; x += pixelStep) {
 
             auto srcp1 = sse_load_si128<uint16_t, true>(bufferpp1 + x);
             auto srcc0 = sse_load_si128<uint16_t, true>(bufferpc0 + x);
@@ -1067,7 +1067,7 @@ static inline void processBuffers_new_sse(uint16_t *bufferp, int32_t *bufferTemp
             sum_hi = _mm_add_epi32(sum_hi, srcn1_hi);
 
             sse_store_si128<int32_t, true>(bufferTempc + x, sum_lo);
-            sse_store_si128<int32_t, true>(bufferTempc + x + pixelPerInstIType, sum_hi);
+            sse_store_si128<int32_t, true>(bufferTempc + x + pixelStep2, sum_hi);
         }
 
         bufferpc0 += bufferStride;
@@ -1083,10 +1083,10 @@ static inline void processBuffers_new_sse(uint16_t *bufferp, int32_t *bufferTemp
 
         processBuffersBlock_sse<BorderMode::LEFT>(bufferpc0, bufferTempc, 0);
 
-        for (int x = pixelPerInst; x < bufferStride - pixelPerInst; x += pixelPerInst)
+        for (int x = pixelStep; x < bufferStride - pixelStep; x += pixelStep)
             processBuffersBlock_sse<BorderMode::NONE>(bufferpc0, bufferTempc, x);
 
-        processBuffersBlock_sse<BorderMode::RIGHT>(bufferpc0, bufferTempc, bufferStride - pixelPerInst);
+        processBuffersBlock_sse<BorderMode::RIGHT>(bufferpc0, bufferTempc, bufferStride - pixelStep);
 
         bufferpc0 += bufferStride;
         bufferTempc += bufferStride;
@@ -1100,11 +1100,11 @@ static inline void processBuffers_new_sse(float *bufferp, float *bufferTemp, con
     auto bufferpn1 = bufferpc0 + bufferStride;
     auto bufferTempc = bufferTemp + bufferStride;
 
-    constexpr int pixelPerInst = sseBytes / sizeof(float);
+    constexpr int pixelStep = sseBytes / sizeof(float);
 
     for (int y = 0; y < bufferHeight - 1; ++y) {
 
-        for (int x = 0; x < bufferStride; x += pixelPerInst) {
+        for (int x = 0; x < bufferStride; x += pixelStep) {
 
             auto srcp1 = sse_load_ps<float, true>(bufferpp1 + x);
             auto srcc0 = sse_load_ps<float, true>(bufferpc0 + x);
@@ -1129,10 +1129,10 @@ static inline void processBuffers_new_sse(float *bufferp, float *bufferTemp, con
 
         processBuffersBlock_sse<BorderMode::LEFT>(bufferpc0, bufferTempc, 0);
 
-        for (int x = pixelPerInst; x < bufferStride - pixelPerInst; x += pixelPerInst)
+        for (int x = pixelStep; x < bufferStride - pixelStep; x += pixelStep)
             processBuffersBlock_sse<BorderMode::NONE>(bufferpc0, bufferTempc, x);
 
-        processBuffersBlock_sse<BorderMode::RIGHT>(bufferpc0, bufferTempc, bufferStride - pixelPerInst);
+        processBuffersBlock_sse<BorderMode::RIGHT>(bufferpc0, bufferTempc, bufferStride - pixelStep);
 
         bufferpc0 += bufferStride;
         bufferTempc += bufferStride;
@@ -1193,14 +1193,14 @@ static inline void processBuffers_org_sse(uint8_t *bufferp, int16_t *bufferTemp,
     auto bufferpn1 = bufferpc0 + bufferStride;
     auto bufferTempc = bufferTemp + bufferStride;
 
-    constexpr int pixelPerInst = sseBytes / sizeof(uint8_t);
-    constexpr int pixelPerInstIType = sseBytes / sizeof(int16_t);
+    constexpr int pixelStep = sseBytes / sizeof(uint8_t);
+    constexpr int pixelStep2 = sseBytes / sizeof(int16_t);
 
     for (int y = 0; y < bufferHeight - 1; ++y) {
 
         const auto const_0 = _mm_setzero_si128();
 
-        for (int x = 0; x < bufferStride; x += pixelPerInst) {
+        for (int x = 0; x < bufferStride; x += pixelStep) {
 
             auto srcp1 = sse_load_si128<uint8_t, true>(bufferpp1 + x);
             auto srcc0 = sse_load_si128<uint8_t, true>(bufferpc0 + x);
@@ -1221,15 +1221,15 @@ static inline void processBuffers_org_sse(uint8_t *bufferp, int16_t *bufferTemp,
             sum_hi = _mm_add_epi16(sum_hi, srcn1_hi);
 
             sse_store_si128<int16_t, true>(bufferTempc + x, sum_lo);
-            sse_store_si128<int16_t, true>(bufferTempc + x + pixelPerInstIType, sum_hi);
+            sse_store_si128<int16_t, true>(bufferTempc + x + pixelStep2, sum_hi);
         }
 
         processBuffersBlock_sse<BorderMode::LEFT>(bufferpc0, bufferTempc, 0);
 
-        for (int x = pixelPerInst; x < bufferStride - pixelPerInst; x += pixelPerInst)
+        for (int x = pixelStep; x < bufferStride - pixelStep; x += pixelStep)
             processBuffersBlock_sse<BorderMode::NONE>(bufferpc0, bufferTempc, x);
 
-        processBuffersBlock_sse<BorderMode::RIGHT>(bufferpc0, bufferTempc, bufferStride - pixelPerInst);
+        processBuffersBlock_sse<BorderMode::RIGHT>(bufferpc0, bufferTempc, bufferStride - pixelStep);
 
         bufferpc0 += bufferStride;
         bufferpp1 += bufferStride;
@@ -1244,14 +1244,14 @@ static inline void processBuffers_org_sse(uint16_t *bufferp, int32_t *bufferTemp
     auto bufferpn1 = bufferpc0 + bufferStride;
     auto bufferTempc = bufferTemp + bufferStride;
 
-    constexpr int pixelPerInst = sseBytes / sizeof(uint16_t);
-    constexpr int pixelPerInstIType = sseBytes / sizeof(int32_t);
+    constexpr int pixelStep = sseBytes / sizeof(uint16_t);
+    constexpr int pixelStep2 = sseBytes / sizeof(int32_t);
 
     for (int y = 0; y < bufferHeight - 1; ++y) {
 
         const auto const_0 = _mm_setzero_si128();
 
-        for (int x = 0; x < bufferStride; x += pixelPerInst) {
+        for (int x = 0; x < bufferStride; x += pixelStep) {
 
             auto srcp1 = sse_load_si128<uint16_t, true>(bufferpp1 + x);
             auto srcc0 = sse_load_si128<uint16_t, true>(bufferpc0 + x);
@@ -1272,15 +1272,15 @@ static inline void processBuffers_org_sse(uint16_t *bufferp, int32_t *bufferTemp
             sum_hi = _mm_add_epi32(sum_hi, srcn1_hi);
 
             sse_store_si128<int32_t, true>(bufferTempc + x, sum_lo);
-            sse_store_si128<int32_t, true>(bufferTempc + x + pixelPerInstIType, sum_hi);
+            sse_store_si128<int32_t, true>(bufferTempc + x + pixelStep2, sum_hi);
         }
 
         processBuffersBlock_sse<BorderMode::LEFT>(bufferpc0, bufferTempc, 0);
 
-        for (int x = pixelPerInst; x < bufferStride - pixelPerInst; x += pixelPerInst)
+        for (int x = pixelStep; x < bufferStride - pixelStep; x += pixelStep)
             processBuffersBlock_sse<BorderMode::NONE>(bufferpc0, bufferTempc, x);
 
-        processBuffersBlock_sse<BorderMode::RIGHT>(bufferpc0, bufferTempc, bufferStride - pixelPerInst);
+        processBuffersBlock_sse<BorderMode::RIGHT>(bufferpc0, bufferTempc, bufferStride - pixelStep);
 
 
         bufferpc0 += bufferStride;
@@ -1327,12 +1327,12 @@ static inline void processBuffers_org_c(T *bufferp, IType *bufferTemp, const int
 #ifdef VS_TARGET_CPU_X86
 
 template <BorderMode border, bool alignedLoad, bool alignedLoadBuffer, bool alignedStore>
-static inline void finalizePlaneLine_sse(const uint8_t *srcp, const uint8_t *srcpn2, uint8_t *dstpn, uint8_t *buffers[TOTAL_BUFFERS], int bufferOffset, const int w, const int pixelPerInst, const float aaf)
+static inline void finalizePlaneLine_sse(const uint8_t *srcp, const uint8_t *srcpn2, uint8_t *dstpn, uint8_t *buffers[TOTAL_BUFFERS], int bufferOffset, const int w, const int pixelStep, const float aaf)
 {
     const auto aa = _mm_set1_epi8(aaf);
     const auto const_0 = _mm_setzero_si128();
 
-    for (int x = 0; x < w; x += pixelPerInst) {
+    for (int x = 0; x < w; x += pixelStep) {
 
         auto currLineM3 = sse_load_3_to_left_si128<uint8_t, border == BorderMode::LEFT, alignedLoad>(srcp + x);
         auto currLineM2 = sse_load_2_to_left_si128<uint8_t, border == BorderMode::LEFT, alignedLoad>(srcp + x);
@@ -1409,12 +1409,12 @@ static inline void finalizePlaneLine_sse(const uint8_t *srcp, const uint8_t *src
 }
 
 template <BorderMode border, bool alignedLoad, bool alignedLoadBuffer, bool alignedStore>
-static inline void finalizePlaneLine_sse(const uint16_t *srcp, const uint16_t *srcpn2, uint16_t *dstpn, uint16_t *buffers[TOTAL_BUFFERS], int bufferOffset, const int w, const int pixelPerInst, const float aaf)
+static inline void finalizePlaneLine_sse(const uint16_t *srcp, const uint16_t *srcpn2, uint16_t *dstpn, uint16_t *buffers[TOTAL_BUFFERS], int bufferOffset, const int w, const int pixelStep, const float aaf)
 {
     const auto aa = _mm_set1_epi16(aaf);
     const auto const_0 = _mm_setzero_si128();
 
-    for (int x = 0; x < w; x += pixelPerInst) {
+    for (int x = 0; x < w; x += pixelStep) {
 
         auto currLineM3 = sse_load_3_to_left_si128<uint16_t, border == BorderMode::LEFT, alignedLoad>(srcp + x);
         auto currLineM2 = sse_load_2_to_left_si128<uint16_t, border == BorderMode::LEFT, alignedLoad>(srcp + x);
@@ -1492,13 +1492,13 @@ static inline void finalizePlaneLine_sse(const uint16_t *srcp, const uint16_t *s
 }
 
 template <BorderMode border, bool alignedLoad, bool alignedLoadBuffer, bool alignedStore>
-static inline void finalizePlaneLine_sse(const float *srcp, const float *srcpn2, float *dstpn, float *buffers[TOTAL_BUFFERS], int bufferOffset, const int w, const int pixelPerInst, const float aaf)
+static inline void finalizePlaneLine_sse(const float *srcp, const float *srcpn2, float *dstpn, float *buffers[TOTAL_BUFFERS], int bufferOffset, const int w, const int pixelStep, const float aaf)
 {
     const auto aa = _mm_set1_ps(aaf);
     const auto const_0 = _mm_setzero_ps();
     const auto const_1_2 = _mm_set1_ps(1.0 / 2.0);
 
-    for (int x = 0; x < w; x += pixelPerInst) {
+    for (int x = 0; x < w; x += pixelStep) {
 
         auto currLineM3 = sse_load_3_to_left_ps<float, border == BorderMode::LEFT, alignedLoad>(srcp + x);
         auto currLineM2 = sse_load_2_to_left_ps<float, border == BorderMode::LEFT, alignedLoad>(srcp + x);
@@ -1582,14 +1582,14 @@ static inline void finalizePlane_sse(const T *srcp, const int srcStride, T *dstp
 
     int bufferOffset = bufferStride;
 
-    constexpr int pixelPerInst = sseBytes / sizeof(T);
-    const int wMod = (w + pixelPerInst - 1) & ~(pixelPerInst - 1);
+    constexpr int pixelStep = sseBytes / sizeof(T);
+    const int wMod = (w + pixelStep - 1) & ~(pixelStep - 1);
 
     for (int y = 0; y < h / 2 - 1; ++y) {
 
-        finalizePlaneLine_sse<BorderMode::LEFT, true, true, true>(srcp, srcpn2, dstpn, buffers, bufferOffset, pixelPerInst, pixelPerInst, aaf);
-        finalizePlaneLine_sse<BorderMode::NONE, true, true, true>(srcp + pixelPerInst, srcpn2 + pixelPerInst, dstpn + pixelPerInst, buffers, bufferOffset + pixelPerInst, wMod - pixelPerInst, pixelPerInst, aaf);
-        finalizePlaneLine_sse<BorderMode::RIGHT, false, false, false>(srcp + w - pixelPerInst, srcpn2 + w - pixelPerInst, dstpn + w - pixelPerInst, buffers, bufferOffset + w - pixelPerInst, pixelPerInst, pixelPerInst, aaf);
+        finalizePlaneLine_sse<BorderMode::LEFT, true, true, true>(srcp, srcpn2, dstpn, buffers, bufferOffset, pixelStep, pixelStep, aaf);
+        finalizePlaneLine_sse<BorderMode::NONE, true, true, true>(srcp + pixelStep, srcpn2 + pixelStep, dstpn + pixelStep, buffers, bufferOffset + pixelStep, wMod - pixelStep, pixelStep, aaf);
+        finalizePlaneLine_sse<BorderMode::RIGHT, false, false, false>(srcp + w - pixelStep, srcpn2 + w - pixelStep, dstpn + w - pixelStep, buffers, bufferOffset + w - pixelStep, pixelStep, pixelStep, aaf);
 
         srcp += srcStride * 2;
         srcpn2 += srcStride * 2;
