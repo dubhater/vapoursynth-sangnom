@@ -1651,6 +1651,84 @@ static inline void finalizePlane_c(const T *srcp, const int srcStride, T *dstp, 
             ///////////////////////////////////////////////////////////////////////
             // the order of following code is important, don't change them
             if (buf[4] == minBuf || minBuf >= aaf) {
+                dstpn[x] = (currLine + nextLine + 1) >> 1;
+            } else if (buf[5] == minBuf) {
+                dstpn[x] = (backwardSangNom1 + backwardSangNom2 + 1) >> 1;
+            } else if (buf[3] == minBuf) {
+                dstpn[x] = (forwardSangNom1 + forwardSangNom2 + 1) >> 1;
+            } else if (buf[6] == minBuf) {
+                dstpn[x] = (currLineP1 + nextLineM1 + 1) >> 1;
+            } else if (buf[2] == minBuf) {
+                dstpn[x] = (currLineM1 + nextLineP1 + 1) >> 1;
+            } else if (buf[7] == minBuf) {
+                dstpn[x] = (currLineP2 + nextLineM2 + 1) >> 1;
+            } else if (buf[1] == minBuf) {
+                dstpn[x] = (currLineM2 + nextLineP2 + 1) >> 1;
+            } else if (buf[8] == minBuf) {
+                dstpn[x] = (currLineP3 + nextLineM3 + 1) >> 1;
+            } else if (buf[0] == minBuf) {
+                dstpn[x] = (currLineM3 + nextLineP3 + 1) >> 1;
+            }
+        }
+
+        srcp += srcStride * 2;
+        srcpn2 += srcStride * 2;
+        dstpn += dstStride * 2;
+        bufferOffset += bufferStride;
+    }
+}
+
+template <>
+inline void finalizePlane_c<float, float>(const float *srcp, const int srcStride, float *dstp, const int dstStride, const int w, const int h, const int bufferStride, const float aaf, float *buffers[TOTAL_BUFFERS])
+{
+    auto srcpn2 = srcp + srcStride * 2;
+    auto dstpn = dstp + dstStride;
+
+    int bufferOffset = bufferStride;
+
+    for (int y = 0; y < h / 2 - 1; ++y) {
+
+        for (int x = 0; x < w; ++x) {
+
+            const float currLineM3 = loadPixel<float, float>(srcp, x, -3, w);
+            const float currLineM2 = loadPixel<float, float>(srcp, x, -2, w);
+            const float currLineM1 = loadPixel<float, float>(srcp, x, -1, w);
+            const float currLine   = srcp[x];
+            const float currLineP1 = loadPixel<float, float>(srcp, x, 1, w);
+            const float currLineP2 = loadPixel<float, float>(srcp, x, 2, w);
+            const float currLineP3 = loadPixel<float, float>(srcp, x, 3, w);
+
+            const float nextLineM3 = loadPixel<float, float>(srcpn2, x, -3, w);
+            const float nextLineM2 = loadPixel<float, float>(srcpn2, x, -2, w);
+            const float nextLineM1 = loadPixel<float, float>(srcpn2, x, -1, w);
+            const float nextLine   = srcpn2[x];
+            const float nextLineP1 = loadPixel<float, float>(srcpn2, x, 1, w);
+            const float nextLineP2 = loadPixel<float, float>(srcpn2, x, 2, w);
+            const float nextLineP3 = loadPixel<float, float>(srcpn2, x, 3, w);
+
+            const float forwardSangNom1 = calculateSangNom<float, float>(currLineM1, currLine, currLineP1);
+            const float forwardSangNom2 = calculateSangNom<float, float>(nextLineP1, nextLine, nextLineM1);
+            const float backwardSangNom1 = calculateSangNom<float, float>(currLineP1, currLine, currLineM1);
+            const float backwardSangNom2 = calculateSangNom<float, float>(nextLineM1, nextLine, nextLineP1);
+
+            float buf[9];
+            buf[0] = buffers[ADIFF_M3_P3][bufferOffset + x];
+            buf[1] = buffers[ADIFF_M2_P2][bufferOffset + x];
+            buf[2] = buffers[ADIFF_M1_P1][bufferOffset + x];
+            buf[3] = buffers[SG_FORWARD][bufferOffset + x];
+            buf[4] = buffers[ADIFF_P0_M0][bufferOffset + x];
+            buf[5] = buffers[SG_REVERSE][bufferOffset + x];
+            buf[6] = buffers[ADIFF_P1_M1][bufferOffset + x];
+            buf[7] = buffers[ADIFF_P2_M2][bufferOffset + x];
+            buf[8] = buffers[ADIFF_P3_M3][bufferOffset + x];
+
+            float minBuf = buf[0];
+            for (int i = 1; i < 9; ++i)
+                minBuf = std::min(minBuf, buf[i]);
+
+            ///////////////////////////////////////////////////////////////////////
+            // the order of following code is important, don't change them
+            if (buf[4] == minBuf || minBuf >= aaf) {
                 dstpn[x] = (currLine + nextLine) / 2;
             } else if (buf[5] == minBuf) {
                 dstpn[x] = (backwardSangNom1 + backwardSangNom2) / 2;
@@ -1677,6 +1755,7 @@ static inline void finalizePlane_c(const T *srcp, const int srcStride, T *dstp, 
         bufferOffset += bufferStride;
     }
 }
+
 
 #ifdef VS_TARGET_CPU_X86
 
