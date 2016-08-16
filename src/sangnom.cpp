@@ -1289,6 +1289,44 @@ static inline void processBuffers_org_sse(uint16_t *bufferp, int32_t *bufferTemp
     }
 }
 
+static inline void processBuffers_org_sse(float *bufferp, float *bufferTemp, const int bufferStride, const int bufferHeight)
+{
+    auto bufferpp1 = bufferp;
+    auto bufferpc0 = bufferpp1 + bufferStride;
+    auto bufferpn1 = bufferpc0 + bufferStride;
+    auto bufferTempc = bufferTemp + bufferStride;
+
+    constexpr int pixelStep = sseBytes / sizeof(float);
+
+    for (int y = 0; y < bufferHeight - 1; ++y) {
+
+        for (int x = 0; x < bufferStride; x += pixelStep) {
+
+            auto srcp1 = sse_load_ps<float, true>(bufferpp1 + x);
+            auto srcc0 = sse_load_ps<float, true>(bufferpc0 + x);
+            auto srcn1 = sse_load_ps<float, true>(bufferpn1 + x);
+
+            auto sum = _mm_add_ps(srcp1, srcc0);
+
+            sum = _mm_add_ps(sum, srcn1);
+
+            sse_store_ps<float, true>(bufferTempc + x, sum);
+        }
+
+        processBuffersBlock_sse<BorderMode::LEFT>(bufferpc0, bufferTempc, 0);
+
+        for (int x = pixelStep; x < bufferStride - pixelStep; x += pixelStep)
+            processBuffersBlock_sse<BorderMode::NONE>(bufferpc0, bufferTempc, x);
+
+        processBuffersBlock_sse<BorderMode::RIGHT>(bufferpc0, bufferTempc, bufferStride - pixelStep);
+
+
+        bufferpc0 += bufferStride;
+        bufferpp1 += bufferStride;
+        bufferpn1 += bufferStride;
+    }
+}
+
 #endif
 
 template <typename T, typename IType>
@@ -1544,17 +1582,17 @@ static inline void finalizePlaneLine_sse(const float *srcp, const float *srcpn2,
 
         ///////////////////////////////////////////////////////////////////////
         // the order of getAvgIfMinBuf is important, don't change them
-        minBufAvg = getAvgIfMinBuf<float, __m128i>(currLineM3, nextLineP3, buf0, minBuf, minBufAvg);
-        minBufAvg = getAvgIfMinBuf<float, __m128i>(currLineP3, nextLineM3, buf8, minBuf, minBufAvg);
+        minBufAvg = getAvgIfMinBuf<float, __m128>(currLineM3, nextLineP3, buf0, minBuf, minBufAvg);
+        minBufAvg = getAvgIfMinBuf<float, __m128>(currLineP3, nextLineM3, buf8, minBuf, minBufAvg);
 
-        minBufAvg = getAvgIfMinBuf<float, __m128i>(currLineM2, nextLineP2, buf1, minBuf, minBufAvg);
-        minBufAvg = getAvgIfMinBuf<float, __m128i>(currLineP2, nextLineM2, buf7, minBuf, minBufAvg);
+        minBufAvg = getAvgIfMinBuf<float, __m128>(currLineM2, nextLineP2, buf1, minBuf, minBufAvg);
+        minBufAvg = getAvgIfMinBuf<float, __m128>(currLineP2, nextLineM2, buf7, minBuf, minBufAvg);
 
-        minBufAvg = getAvgIfMinBuf<float, __m128i>(currLineM1, nextLineP1, buf2, minBuf, minBufAvg);
-        minBufAvg = getAvgIfMinBuf<float, __m128i>(currLineP1, nextLineM1, buf6, minBuf, minBufAvg);
+        minBufAvg = getAvgIfMinBuf<float, __m128>(currLineM1, nextLineP1, buf2, minBuf, minBufAvg);
+        minBufAvg = getAvgIfMinBuf<float, __m128>(currLineP1, nextLineM1, buf6, minBuf, minBufAvg);
 
-        minBufAvg = getAvgIfMinBuf<float, __m128i>(forwardSangNom1, forwardSangNom2, buf3, minBuf, minBufAvg);
-        minBufAvg = getAvgIfMinBuf<float, __m128i>(backwardSangNom1, backwardSangNom2, buf5, minBuf, minBufAvg);
+        minBufAvg = getAvgIfMinBuf<float, __m128>(forwardSangNom1, forwardSangNom2, buf3, minBuf, minBufAvg);
+        minBufAvg = getAvgIfMinBuf<float, __m128>(backwardSangNom1, backwardSangNom2, buf5, minBuf, minBufAvg);
         ///////////////////////////////////////////////////////////////////////
 
         auto buf4Avg = _mm_mul_ps(_mm_add_ps(currLine, nextLine), const_1_2);
@@ -1857,22 +1895,28 @@ static const VSFrameRef *VS_CC sangnomGetFrame(int n, int activationReason, void
             auto width = vsapi->getFrameWidth(src, plane);
             auto height = vsapi->getFrameHeight(src, plane);
 
+#ifdef VS_TARGET_CPU_X86
+
             if (d->vi->format->sampleType == stInteger) {
                 if (d->vi->format->bitsPerSample == 8)
-#ifdef VS_TARGET_CPU_X86
                     sangnom_sse<uint8_t, int16_t>(srcp, srcStride, dstp, dstStride, width, height, d, plane, reinterpret_cast<uint8_t**>(buffers), reinterpret_cast<int16_t*>(bufferTemp));
-#else
-                    sangnom_c<uint8_t, int16_t>(srcp, srcStride, dstp, dstStride, width, height, d, plane, reinterpret_cast<uint8_t**>(buffers), reinterpret_cast<int16_t*>(bufferTemp));
-#endif
                 else
-#ifdef VS_TARGET_CPU_X86
                     sangnom_sse<uint16_t, int32_t>(reinterpret_cast<const uint16_t*>(srcp), srcStride, reinterpret_cast<uint16_t*>(dstp), dstStride, width, height, d, plane, reinterpret_cast<uint16_t**>(buffers), reinterpret_cast<int32_t*>(bufferTemp));
+            } else {
+                sangnom_sse<float, float>(reinterpret_cast<const float*>(srcp), srcStride, reinterpret_cast<float*>(dstp), dstStride, width, height, d, plane, reinterpret_cast<float**>(buffers), reinterpret_cast<float*>(bufferTemp));
+            }
 #else
+
+            if (d->vi->format->sampleType == stInteger) {
+                if (d->vi->format->bitsPerSample == 8)
+                    sangnom_c<uint8_t, int16_t>(srcp, srcStride, dstp, dstStride, width, height, d, plane, reinterpret_cast<uint8_t**>(buffers), reinterpret_cast<int16_t*>(bufferTemp));
+                else
                     sangnom_c<uint16_t, int32_t>(reinterpret_cast<const uint16_t*>(srcp), srcStride, reinterpret_cast<uint16_t*>(dstp), dstStride, width, height, d, plane, reinterpret_cast<uint16_t**>(buffers), reinterpret_cast<int32_t*>(bufferTemp));
-#endif
             } else {
                 sangnom_c<float, float>(reinterpret_cast<const float*>(srcp), srcStride, reinterpret_cast<float*>(dstp), dstStride, width, height, d, plane, reinterpret_cast<float**>(buffers), reinterpret_cast<float*>(bufferTemp));
             }
+
+#endif
         }
 
         vs_aligned_free(bufferTemp);
