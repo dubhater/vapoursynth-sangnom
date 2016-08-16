@@ -1,7 +1,7 @@
 
 AC_INIT([sangnom], [1.0], [https://bitbucket.org/James1201/vapoursynth-sangnom])
 
-AM_INIT_AUTOMAKE([foreign])
+AM_INIT_AUTOMAKE([foreign subdir-objects])
 AM_SILENT_RULES([yes])
 
 LT_INIT([disable-static win32-dll])
