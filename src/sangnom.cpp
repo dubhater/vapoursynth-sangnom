@@ -1960,12 +1960,6 @@ static void VS_CC sangnomCreate(const VSMap *in, VSMap *out, void *userData, VSC
 
         if (d->aa < 0 || d->aa > 128)
             throw std::string("aa must be 0 ... 128");
-        // tweak aa value for different format
-        if (d->vi->format->sampleType == stInteger)
-            d->aaf = (d->aa * 21.0f / 16.0f) * (1 << (d->vi->format->bitsPerSample - 8));
-        else
-            d->aaf = (d->aa * 21.0f / 16.0f) / 256.0f;
-
 
         d->algo = int64ToIntS(vsapi->propGetInt(in, "algo", 0, &err));
         if (err) d->algo = SNAT_ORG;
@@ -1998,12 +1992,20 @@ static void VS_CC sangnomCreate(const VSMap *in, VSMap *out, void *userData, VSC
         return;
     }
 
+    // setup offset for the start line
     if (d->order == SNOT_DFR) {
         d->offset = 0;  // keep top field
     } else {
         d->offset = !d->order;
     }
 
+    // tweak aa value for different format
+    if (d->vi->format->sampleType == stInteger)
+        d->aaf = (d->aa * 21.0f / 16.0f) * (1 << (d->vi->format->bitsPerSample - 8));
+    else
+        d->aaf = (d->aa * 21.0f / 16.0f) / 256.0f;
+
+    // calculate the buffer size
     d->bufferStride = (d->vi->width + alignment - 1) & ~(alignment - 1);
     d->bufferHeight = (d->vi->height + 1) >> 1;
 
