@@ -1,0 +1,15 @@
+
+r33
+    check the video height which should be an even number.
+    add SSE2 code for float type input.
+    add configure scripts for linux users.
+    improve README.
+r20
+
+r19
+    remove SSE4.1 dependency, only needs SSE2 now
+r19
+
+r18
+    initial release
+r1
