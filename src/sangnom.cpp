@@ -1943,6 +1943,8 @@ static void VS_CC sangnomCreate(const VSMap *in, VSMap *out, void *userData, VSC
     d->vi = vsapi->getVideoInfo(d->node);
 
     try {
+        if (d->vi->height % 2 != 0)
+            throw std::string("height must be even");
 
         d->order = int64ToIntS(vsapi->propGetInt(in, "order", 0, &err));
         if (err)
