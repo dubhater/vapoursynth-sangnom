@@ -6,7 +6,7 @@
 ## Build ##
 
 *   compiler with c++11 support
-*   -DVS_TARGET_CPU_X86 can enables the SSE2 code path which has a large benefit on performance
+*   -DVS_TARGET_CPU_X86 can enable the SSE2 code path which has a large benefit on performance
 ***
 
     ./autogen.sh

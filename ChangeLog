@@ -1,5 +1,7 @@
 
-r33
+r36
+    fix a bug that copyField didn't copy the whole lines in 16, 32 bit format.
+    fix a bug that compute the last block twice. luckily it didn't affect the output result.
     check the video height which should be an even number.
     add SSE2 code for float type input.
     add configure scripts for linux users.
