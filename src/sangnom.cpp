@@ -643,11 +643,11 @@ static inline void copyField(const T *srcp, const int srcStride, T *dstp, const 
     if (d->offset == 0) {
         // keep top field so the bottom line can't be interpolated
         // just copy the data from its correspond top field
-        vs_bitblt(dstp + (h - 1) * dstStride, dstStride, srcp + (h - 2) * srcStride, srcStride, w, 1);
+        memcpy(dstp + (h - 1) * dstStride, srcp + (h - 2) * srcStride, w * sizeof(T));
     } else {
         // keep bottom field so the top line can't be interpolated
         // just copy the data from its correspond bottom field
-        vs_bitblt(dstp, dstStride, srcp + srcStride, srcStride, w, 1);
+        memcpy(dstp, srcp + srcStride, w * sizeof(T));
     }
 }
 

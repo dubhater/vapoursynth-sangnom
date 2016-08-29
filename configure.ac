@@ -1,5 +1,5 @@
 
-AC_INIT([sangnom], [1.0], [https://bitbucket.org/James1201/vapoursynth-sangnom])
+AC_INIT([sangnom], [2.0], [https://bitbucket.org/James1201/vapoursynth-sangnom])
 
 AM_INIT_AUTOMAKE([foreign subdir-objects])
 AM_SILENT_RULES([yes])
