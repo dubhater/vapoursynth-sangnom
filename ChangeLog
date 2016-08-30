@@ -1,4 +1,8 @@
 
+r37
+    add support for specifying aa values for different planes by using array.
+r37
+
 r36
     fix a bug that copyField didn't copy the whole lines in 16, 32 bit format.
     fix a bug that compute the last block twice. luckily it didn't affect the output result.

@@ -29,11 +29,11 @@ typedef struct SangNomData
     const VSVideoInfo *vi;
 
     int order;
-    int aa;
+    int aa[3];
     int algo;
     bool planes[3];
 
-    float aaf;  // float type of aa param
+    float aaf[3];   // float type of aa param
     int offset;
     int bufferStride;
     int bufferHeight;
@@ -1810,7 +1810,7 @@ static inline void sangnom_sse(const T *srcp, const int srcStride, T *dstp, cons
             processBuffers_new_sse(buffers[i], bufferTemp, d->bufferStride, d->bufferHeight);
     }
 
-    finalizePlane_sse<T, IType>(srcp + d->offset * srcStride, srcStride, dstp + d->offset * dstStride, dstStride, w, h, d->bufferStride, d->aaf, buffers);
+    finalizePlane_sse<T, IType>(srcp + d->offset * srcStride, srcStride, dstp + d->offset * dstStride, dstStride, w, h, d->bufferStride, d->aaf[plane], buffers);
 }
 
 #endif
@@ -1830,7 +1830,7 @@ static inline void sangnom_c(const T *srcp, const int srcStride, T *dstp, const 
             processBuffers_new_c<T, IType>(buffers[i], bufferTemp, d->bufferStride, d->bufferHeight);
     }
 
-    finalizePlane_c<T, IType>(srcp + d->offset * srcStride, srcStride, dstp + d->offset * dstStride, dstStride, w, h, d->bufferStride, d->aaf, buffers);
+    finalizePlane_c<T, IType>(srcp + d->offset * srcStride, srcStride, dstp + d->offset * dstStride, dstStride, w, h, d->bufferStride, d->aaf[plane], buffers);
 }
 
 static void VS_CC sangnomInit(VSMap *in, VSMap *out, void **instanceData, VSNode* node, VSCore *core, const VSAPI *vsapi)
@@ -1955,11 +1955,19 @@ static void VS_CC sangnomCreate(const VSMap *in, VSMap *out, void *userData, VSC
         if (d->order < 0 || d->order > 2)
             throw std::string("order must be 0 ... 2");
 
-        d->aa = int64ToIntS(vsapi->propGetInt(in, "aa", 0, &err));
-        if (err) d->aa = 48;
-
-        if (d->aa < 0 || d->aa > 128)
-            throw std::string("aa must be 0 ... 128");
+        int numAA = vsapi->propNumElements(in, "aa");
+        if (numAA <= 0) {
+            for (int plane = 0; plane < 3; ++plane)
+                d->aa[plane] = 48;
+        } else {
+            for (int plane = 0; plane < numAA; ++plane) {
+                d->aa[plane] = int64ToIntS(vsapi->propGetInt(in, "aa", plane, &err));
+                if (d->aa[plane] < 0 || d->aa[plane] > 128)
+                    throw std::string("aa must be 0 ... 128");
+            }
+            for (int plane = numAA; plane < d->vi->format->numPlanes; ++plane)
+                d->aa[plane] = d->aa[numAA - 1];
+        }
 
         d->algo = int64ToIntS(vsapi->propGetInt(in, "algo", 0, &err));
         if (err) d->algo = SNAT_ORG;
@@ -2000,10 +2008,12 @@ static void VS_CC sangnomCreate(const VSMap *in, VSMap *out, void *userData, VSC
     }
 
     // tweak aa value for different format
-    if (d->vi->format->sampleType == stInteger)
-        d->aaf = (d->aa * 21.0f / 16.0f) * (1 << (d->vi->format->bitsPerSample - 8));
-    else
-        d->aaf = (d->aa * 21.0f / 16.0f) / 256.0f;
+    for (int plane = 0; plane < d->vi->format->numPlanes; ++plane) {
+        if (d->vi->format->sampleType == stInteger)
+            d->aaf[plane] = (d->aa[plane] * 21.0f / 16.0f) * (1 << (d->vi->format->bitsPerSample - 8));
+        else
+            d->aaf[plane] = (d->aa[plane] * 21.0f / 16.0f) / 256.0f;
+    }
 
     // calculate the buffer size
     d->bufferStride = (d->vi->width + alignment - 1) & ~(alignment - 1);
@@ -2017,7 +2027,7 @@ VS_EXTERNAL_API(void) VapourSynthPluginInit(VSConfigPlugin configFunc, VSRegiste
     configFunc("com.mio.sangnom", "sangnom", "VapourSynth Single Field Deinterlacer", VAPOURSYNTH_API_VERSION, 1, plugin);
     registerFunc("SangNom", "clip:clip;"
         "order:int:opt;"
-        "aa:int:opt;"
+        "aa:int[]:opt;"
         "algo:int:opt;"
         "planes:int[]:opt;",
         sangnomCreate, nullptr, plugin);
