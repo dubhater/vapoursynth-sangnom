@@ -1,5 +1,6 @@
 
-r39
+r40
+    remove param algo and the new algo, always use the original one now.
     add new param dh.
     fix a bug that keep bottom field donesn't work.
     add support for specifying aa values for different planes by using array.

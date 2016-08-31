@@ -33,7 +33,6 @@ typedef struct SangNomData
     int order;
     int dh;
     int aa[3];
-    int algo;
     bool planes[3];
 
     float aaf[3];   // float type of aa param
@@ -47,12 +46,6 @@ enum SangNomOrderType
     SNOT_DFR = 0,   // double frame rate, user must call DoubleWeave() before use this
     SNOT_SFR_KT,    // single frame rate, keep top field
     SNOT_SFR_KB     // single frame rate, keep bottom field
-};
-
-enum SangNomAlgoType
-{
-    SNAT_ORG = 0,   // same algo as AVISynth SangNom2
-    SNAT_NEW = 1    // more accurate one, but slower
 };
 
 static inline int VapourSynthFieldBasedToSangNomOrder(int64_t fieldbased)
@@ -842,25 +835,25 @@ static inline void prepareBuffers_c(const T *srcp, const int srcStride, const in
 #ifdef VS_TARGET_CPU_X86
 
 template <BorderMode border>
-static inline void processBuffersBlock_sse(uint8_t *bufferp, const int16_t *bufferTemp, const int x)
+static inline void processBuffersBlock_sse(uint8_t *bufferp, const int16_t *bufferLine, const int x)
 {
     constexpr int pixelStep2 = sseBytes / sizeof(int16_t);
 
-    auto currLineM3_lo = sse_load_3_to_left_si128<int16_t, border == BorderMode::LEFT, true>(bufferTemp + x);
-    auto currLineM2_lo = sse_load_2_to_left_si128<int16_t, border == BorderMode::LEFT, true>(bufferTemp + x);
-    auto currLineM1_lo = sse_load_1_to_left_si128<int16_t, border == BorderMode::LEFT, true>(bufferTemp + x);
-    auto currLine_lo   = sse_load_si128<int16_t, true>(bufferTemp + x);
-    auto currLineP1_lo = sse_load_1_to_right_si128<int16_t, false, true>(bufferTemp + x);
-    auto currLineP2_lo = sse_load_2_to_right_si128<int16_t, false, true>(bufferTemp + x);
-    auto currLineP3_lo = sse_load_3_to_right_si128<int16_t, false, true>(bufferTemp + x);
+    auto currLineM3_lo = sse_load_3_to_left_si128<int16_t, border == BorderMode::LEFT, true>(bufferLine + x);
+    auto currLineM2_lo = sse_load_2_to_left_si128<int16_t, border == BorderMode::LEFT, true>(bufferLine + x);
+    auto currLineM1_lo = sse_load_1_to_left_si128<int16_t, border == BorderMode::LEFT, true>(bufferLine + x);
+    auto currLine_lo   = sse_load_si128<int16_t, true>(bufferLine + x);
+    auto currLineP1_lo = sse_load_1_to_right_si128<int16_t, false, true>(bufferLine + x);
+    auto currLineP2_lo = sse_load_2_to_right_si128<int16_t, false, true>(bufferLine + x);
+    auto currLineP3_lo = sse_load_3_to_right_si128<int16_t, false, true>(bufferLine + x);
 
-    auto currLineM3_hi = sse_load_3_to_left_si128<int16_t, false, true>(bufferTemp + x + pixelStep2);
-    auto currLineM2_hi = sse_load_2_to_left_si128<int16_t, false, true>(bufferTemp + x + pixelStep2);
-    auto currLineM1_hi = sse_load_1_to_left_si128<int16_t, false, true>(bufferTemp + x + pixelStep2);
-    auto currLine_hi   = sse_load_si128<int16_t, true>(bufferTemp + x + pixelStep2);
-    auto currLineP1_hi = sse_load_1_to_right_si128<int16_t, border == BorderMode::RIGHT, true>(bufferTemp + x + pixelStep2);
-    auto currLineP2_hi = sse_load_2_to_right_si128<int16_t, border == BorderMode::RIGHT, true>(bufferTemp + x + pixelStep2);
-    auto currLineP3_hi = sse_load_3_to_right_si128<int16_t, border == BorderMode::RIGHT, true>(bufferTemp + x + pixelStep2);
+    auto currLineM3_hi = sse_load_3_to_left_si128<int16_t, false, true>(bufferLine + x + pixelStep2);
+    auto currLineM2_hi = sse_load_2_to_left_si128<int16_t, false, true>(bufferLine + x + pixelStep2);
+    auto currLineM1_hi = sse_load_1_to_left_si128<int16_t, false, true>(bufferLine + x + pixelStep2);
+    auto currLine_hi   = sse_load_si128<int16_t, true>(bufferLine + x + pixelStep2);
+    auto currLineP1_hi = sse_load_1_to_right_si128<int16_t, border == BorderMode::RIGHT, true>(bufferLine + x + pixelStep2);
+    auto currLineP2_hi = sse_load_2_to_right_si128<int16_t, border == BorderMode::RIGHT, true>(bufferLine + x + pixelStep2);
+    auto currLineP3_hi = sse_load_3_to_right_si128<int16_t, border == BorderMode::RIGHT, true>(bufferLine + x + pixelStep2);
 
     auto sum_lo = _mm_add_epi16(currLineM3_lo, currLineM2_lo);
     sum_lo = _mm_add_epi16(sum_lo, currLineM1_lo);
@@ -888,25 +881,25 @@ static inline void processBuffersBlock_sse(uint8_t *bufferp, const int16_t *buff
 }
 
 template <BorderMode border>
-static inline void processBuffersBlock_sse(uint16_t *bufferp, const int32_t *bufferTemp, const int x)
+static inline void processBuffersBlock_sse(uint16_t *bufferp, const int32_t *bufferLine, const int x)
 {
     constexpr int pixelStep2 = sseBytes / sizeof(int32_t);
 
-    auto currLineM3_lo = sse_load_3_to_left_si128<int32_t, border == BorderMode::LEFT, true>(bufferTemp + x);
-    auto currLineM2_lo = sse_load_2_to_left_si128<int32_t, border == BorderMode::LEFT, true>(bufferTemp + x);
-    auto currLineM1_lo = sse_load_1_to_left_si128<int32_t, border == BorderMode::LEFT, true>(bufferTemp + x);
-    auto currLine_lo   = sse_load_si128<int32_t, true>(bufferTemp + x);
-    auto currLineP1_lo = sse_load_1_to_right_si128<int32_t, false, true>(bufferTemp + x);
-    auto currLineP2_lo = sse_load_2_to_right_si128<int32_t, false, true>(bufferTemp + x);
-    auto currLineP3_lo = sse_load_3_to_right_si128<int32_t, false, true>(bufferTemp + x);
+    auto currLineM3_lo = sse_load_3_to_left_si128<int32_t, border == BorderMode::LEFT, true>(bufferLine + x);
+    auto currLineM2_lo = sse_load_2_to_left_si128<int32_t, border == BorderMode::LEFT, true>(bufferLine + x);
+    auto currLineM1_lo = sse_load_1_to_left_si128<int32_t, border == BorderMode::LEFT, true>(bufferLine + x);
+    auto currLine_lo   = sse_load_si128<int32_t, true>(bufferLine + x);
+    auto currLineP1_lo = sse_load_1_to_right_si128<int32_t, false, true>(bufferLine + x);
+    auto currLineP2_lo = sse_load_2_to_right_si128<int32_t, false, true>(bufferLine + x);
+    auto currLineP3_lo = sse_load_3_to_right_si128<int32_t, false, true>(bufferLine + x);
 
-    auto currLineM3_hi = sse_load_3_to_left_si128<int32_t, false, true>(bufferTemp + x + pixelStep2);
-    auto currLineM2_hi = sse_load_2_to_left_si128<int32_t, false, true>(bufferTemp + x + pixelStep2);
-    auto currLineM1_hi = sse_load_1_to_left_si128<int32_t, false, true>(bufferTemp + x + pixelStep2);
-    auto currLine_hi   = sse_load_si128<int32_t, true>(bufferTemp + x + pixelStep2);
-    auto currLineP1_hi = sse_load_1_to_right_si128<int32_t, border == BorderMode::RIGHT, true>(bufferTemp + x + pixelStep2);
-    auto currLineP2_hi = sse_load_2_to_right_si128<int32_t, border == BorderMode::RIGHT, true>(bufferTemp + x + pixelStep2);
-    auto currLineP3_hi = sse_load_3_to_right_si128<int32_t, border == BorderMode::RIGHT, true>(bufferTemp + x + pixelStep2);
+    auto currLineM3_hi = sse_load_3_to_left_si128<int32_t, false, true>(bufferLine + x + pixelStep2);
+    auto currLineM2_hi = sse_load_2_to_left_si128<int32_t, false, true>(bufferLine + x + pixelStep2);
+    auto currLineM1_hi = sse_load_1_to_left_si128<int32_t, false, true>(bufferLine + x + pixelStep2);
+    auto currLine_hi   = sse_load_si128<int32_t, true>(bufferLine + x + pixelStep2);
+    auto currLineP1_hi = sse_load_1_to_right_si128<int32_t, border == BorderMode::RIGHT, true>(bufferLine + x + pixelStep2);
+    auto currLineP2_hi = sse_load_2_to_right_si128<int32_t, border == BorderMode::RIGHT, true>(bufferLine + x + pixelStep2);
+    auto currLineP3_hi = sse_load_3_to_right_si128<int32_t, border == BorderMode::RIGHT, true>(bufferLine + x + pixelStep2);
 
     auto sum_lo = _mm_add_epi32(currLineM3_lo, currLineM2_lo);
     sum_lo = _mm_add_epi32(sum_lo, currLineM1_lo);
@@ -934,15 +927,15 @@ static inline void processBuffersBlock_sse(uint16_t *bufferp, const int32_t *buf
 }
 
 template <BorderMode border>
-static inline void processBuffersBlock_sse(float *bufferp, const float *bufferTemp, const int x)
+static inline void processBuffersBlock_sse(float *bufferp, const float *bufferLine, const int x)
 {
-    auto currLineM3 = sse_load_3_to_left_ps<float, border == BorderMode::LEFT, true>(bufferTemp + x);
-    auto currLineM2 = sse_load_2_to_left_ps<float, border == BorderMode::LEFT, true>(bufferTemp + x);
-    auto currLineM1 = sse_load_1_to_left_ps<float, border == BorderMode::LEFT, true>(bufferTemp + x);
-    auto currLine   = sse_load_ps<float, true>(bufferTemp + x);
-    auto currLineP1 = sse_load_1_to_right_ps<float, false, true>(bufferTemp + x);
-    auto currLineP2 = sse_load_2_to_right_ps<float, false, true>(bufferTemp + x);
-    auto currLineP3 = sse_load_3_to_right_ps<float, false, true>(bufferTemp + x);
+    auto currLineM3 = sse_load_3_to_left_ps<float, border == BorderMode::LEFT, true>(bufferLine + x);
+    auto currLineM2 = sse_load_2_to_left_ps<float, border == BorderMode::LEFT, true>(bufferLine + x);
+    auto currLineM1 = sse_load_1_to_left_ps<float, border == BorderMode::LEFT, true>(bufferLine + x);
+    auto currLine   = sse_load_ps<float, true>(bufferLine + x);
+    auto currLineP1 = sse_load_1_to_right_ps<float, false, true>(bufferLine + x);
+    auto currLineP2 = sse_load_2_to_right_ps<float, false, true>(bufferLine + x);
+    auto currLineP3 = sse_load_3_to_right_ps<float, false, true>(bufferLine + x);
 
     auto sum = _mm_mul_ps(currLineM3, currLineM2);
     sum = _mm_mul_ps(sum, currLineM1);
@@ -958,12 +951,11 @@ static inline void processBuffersBlock_sse(float *bufferp, const float *bufferTe
     sse_store_ps<float, true>(bufferp + x, result);
 }
 
-static inline void processBuffers_new_sse(uint8_t *bufferp, int16_t *bufferTemp, const int bufferStride, const int bufferHeight)
+static inline void processBuffers_sse(uint8_t *bufferp, int16_t *bufferLine, const int bufferStride, const int bufferHeight)
 {
     auto bufferpp1 = bufferp;
     auto bufferpc0 = bufferpp1 + bufferStride;
     auto bufferpn1 = bufferpc0 + bufferStride;
-    auto bufferTempc = bufferTemp + bufferStride;
 
     constexpr int pixelStep = sseBytes / sizeof(uint8_t);
     constexpr int pixelStep2 = sseBytes / sizeof(int16_t);
@@ -992,39 +984,28 @@ static inline void processBuffers_new_sse(uint8_t *bufferp, int16_t *bufferTemp,
             sum_lo = _mm_add_epi16(sum_lo, srcn1_lo);
             sum_hi = _mm_add_epi16(sum_hi, srcn1_hi);
 
-            sse_store_si128<int16_t, true>(bufferTempc + x, sum_lo);
-            sse_store_si128<int16_t, true>(bufferTempc + x + pixelStep2, sum_hi);
+            sse_store_si128<int16_t, true>(bufferLine + x, sum_lo);
+            sse_store_si128<int16_t, true>(bufferLine + x + pixelStep2, sum_hi);
         }
+
+        processBuffersBlock_sse<BorderMode::LEFT>(bufferpc0, bufferLine, 0);
+
+        for (int x = pixelStep; x < bufferStride - pixelStep; x += pixelStep)
+            processBuffersBlock_sse<BorderMode::NONE>(bufferpc0, bufferLine, x);
+
+        processBuffersBlock_sse<BorderMode::RIGHT>(bufferpc0, bufferLine, bufferStride - pixelStep);
 
         bufferpc0 += bufferStride;
         bufferpp1 += bufferStride;
         bufferpn1 += bufferStride;
-        bufferTempc += bufferStride;
-    }
-
-    bufferpc0 = bufferp + bufferStride;
-    bufferTempc = bufferTemp + bufferStride;
-
-    for (int y = 0; y < bufferHeight - 1; ++y) {
-
-        processBuffersBlock_sse<BorderMode::LEFT>(bufferpc0, bufferTempc, 0);
-
-        for (int x = pixelStep; x < bufferStride - pixelStep; x += pixelStep)
-            processBuffersBlock_sse<BorderMode::NONE>(bufferpc0, bufferTempc, x);
-
-        processBuffersBlock_sse<BorderMode::RIGHT>(bufferpc0, bufferTempc, bufferStride - pixelStep);
-
-        bufferpc0 += bufferStride;
-        bufferTempc += bufferStride;
     }
 }
 
-static inline void processBuffers_new_sse(uint16_t *bufferp, int32_t *bufferTemp, const int bufferStride, const int bufferHeight)
+static inline void processBuffers_sse(uint16_t *bufferp, int32_t *bufferLine, const int bufferStride, const int bufferHeight)
 {
     auto bufferpp1 = bufferp;
     auto bufferpc0 = bufferpp1 + bufferStride;
     auto bufferpn1 = bufferpc0 + bufferStride;
-    auto bufferTempc = bufferTemp + bufferStride;
 
     constexpr int pixelStep = sseBytes / sizeof(uint16_t);
     constexpr int pixelStep2 = sseBytes / sizeof(int32_t);
@@ -1053,235 +1034,29 @@ static inline void processBuffers_new_sse(uint16_t *bufferp, int32_t *bufferTemp
             sum_lo = _mm_add_epi32(sum_lo, srcn1_lo);
             sum_hi = _mm_add_epi32(sum_hi, srcn1_hi);
 
-            sse_store_si128<int32_t, true>(bufferTempc + x, sum_lo);
-            sse_store_si128<int32_t, true>(bufferTempc + x + pixelStep2, sum_hi);
+            sse_store_si128<int32_t, true>(bufferLine + x, sum_lo);
+            sse_store_si128<int32_t, true>(bufferLine + x + pixelStep2, sum_hi);
         }
+
+        processBuffersBlock_sse<BorderMode::LEFT>(bufferpc0, bufferLine, 0);
+
+        for (int x = pixelStep; x < bufferStride - pixelStep; x += pixelStep)
+            processBuffersBlock_sse<BorderMode::NONE>(bufferpc0, bufferLine, x);
+
+        processBuffersBlock_sse<BorderMode::RIGHT>(bufferpc0, bufferLine, bufferStride - pixelStep);
+
 
         bufferpc0 += bufferStride;
         bufferpp1 += bufferStride;
         bufferpn1 += bufferStride;
-        bufferTempc += bufferStride;
-    }
-
-    bufferpc0 = bufferp + bufferStride;
-    bufferTempc = bufferTemp + bufferStride;
-
-    for (int y = 0; y < bufferHeight - 1; ++y) {
-
-        processBuffersBlock_sse<BorderMode::LEFT>(bufferpc0, bufferTempc, 0);
-
-        for (int x = pixelStep; x < bufferStride - pixelStep; x += pixelStep)
-            processBuffersBlock_sse<BorderMode::NONE>(bufferpc0, bufferTempc, x);
-
-        processBuffersBlock_sse<BorderMode::RIGHT>(bufferpc0, bufferTempc, bufferStride - pixelStep);
-
-        bufferpc0 += bufferStride;
-        bufferTempc += bufferStride;
     }
 }
 
-static inline void processBuffers_new_sse(float *bufferp, float *bufferTemp, const int bufferStride, const int bufferHeight)
+static inline void processBuffers_sse(float *bufferp, float *bufferLine, const int bufferStride, const int bufferHeight)
 {
     auto bufferpp1 = bufferp;
     auto bufferpc0 = bufferpp1 + bufferStride;
     auto bufferpn1 = bufferpc0 + bufferStride;
-    auto bufferTempc = bufferTemp + bufferStride;
-
-    constexpr int pixelStep = sseBytes / sizeof(float);
-
-    for (int y = 0; y < bufferHeight - 1; ++y) {
-
-        for (int x = 0; x < bufferStride; x += pixelStep) {
-
-            auto srcp1 = sse_load_ps<float, true>(bufferpp1 + x);
-            auto srcc0 = sse_load_ps<float, true>(bufferpc0 + x);
-            auto srcn1 = sse_load_ps<float, true>(bufferpn1 + x);
-
-            auto sum = _mm_add_ps(srcp1, srcc0);
-            sum = _mm_add_ps(sum, srcn1);
-
-            sse_store_ps<float, true>(bufferTempc + x, sum);
-        }
-
-        bufferpc0 += bufferStride;
-        bufferpp1 += bufferStride;
-        bufferpn1 += bufferStride;
-        bufferTempc += bufferStride;
-    }
-
-    bufferpc0 = bufferp + bufferStride;
-    bufferTempc = bufferTemp + bufferStride;
-
-    for (int y = 0; y < bufferHeight - 1; ++y) {
-
-        processBuffersBlock_sse<BorderMode::LEFT>(bufferpc0, bufferTempc, 0);
-
-        for (int x = pixelStep; x < bufferStride - pixelStep; x += pixelStep)
-            processBuffersBlock_sse<BorderMode::NONE>(bufferpc0, bufferTempc, x);
-
-        processBuffersBlock_sse<BorderMode::RIGHT>(bufferpc0, bufferTempc, bufferStride - pixelStep);
-
-        bufferpc0 += bufferStride;
-        bufferTempc += bufferStride;
-    }
-}
-
-#endif
-
-template <typename T, typename IType>
-static inline void processBuffers_new_c(T *bufferp, IType *bufferTemp, const int bufferStride, const int bufferHeight)
-{
-    auto bufferpc = bufferp + bufferStride;
-    auto bufferpp1 = bufferpc - bufferStride;
-    auto bufferpn1 = bufferpc + bufferStride;
-    auto bufferTempc = bufferTemp + bufferStride;
-
-    for (int y = 0; y < bufferHeight - 1; ++y) {
-
-        for (int x = 0; x < bufferStride; ++x) {
-            bufferTempc[x] = bufferpp1[x] + bufferpc[x] + bufferpn1[x];
-        }
-
-        bufferpc += bufferStride;
-        bufferpp1 += bufferStride;
-        bufferpn1 += bufferStride;
-        bufferTempc += bufferStride;
-    }
-
-    bufferpc = bufferp + bufferStride;
-    bufferTempc = bufferTemp + bufferStride;
-
-    for (int y = 0; y < bufferHeight - 1; ++y) {
-
-        for (int x = 0; x < bufferStride; ++x) {
-
-            const IType currLineM3 = loadPixel<IType, IType>(bufferTempc, x, -3, bufferStride);
-            const IType currLineM2 = loadPixel<IType, IType>(bufferTempc, x, -2, bufferStride);
-            const IType currLineM1 = loadPixel<IType, IType>(bufferTempc, x, -1, bufferStride);
-            const IType currLine   = bufferTempc[x];
-            const IType currLineP1 = loadPixel<IType, IType>(bufferTempc, x, 1, bufferStride);
-            const IType currLineP2 = loadPixel<IType, IType>(bufferTempc, x, 2, bufferStride);
-            const IType currLineP3 = loadPixel<IType, IType>(bufferTempc, x, 3, bufferStride);
-
-            bufferpc[x] = (currLineM3 + currLineM2 + currLineM1 + currLine + currLineP1 + currLineP2 + currLineP3) / 16;
-        }
-
-        bufferpc += bufferStride;
-        bufferTempc += bufferStride;
-    }
-}
-
-#ifdef VS_TARGET_CPU_X86
-
-static inline void processBuffers_org_sse(uint8_t *bufferp, int16_t *bufferTemp, const int bufferStride, const int bufferHeight)
-{
-    auto bufferpp1 = bufferp;
-    auto bufferpc0 = bufferpp1 + bufferStride;
-    auto bufferpn1 = bufferpc0 + bufferStride;
-    auto bufferTempc = bufferTemp + bufferStride;
-
-    constexpr int pixelStep = sseBytes / sizeof(uint8_t);
-    constexpr int pixelStep2 = sseBytes / sizeof(int16_t);
-
-    for (int y = 0; y < bufferHeight - 1; ++y) {
-
-        const auto const_0 = _mm_setzero_si128();
-
-        for (int x = 0; x < bufferStride; x += pixelStep) {
-
-            auto srcp1 = sse_load_si128<uint8_t, true>(bufferpp1 + x);
-            auto srcc0 = sse_load_si128<uint8_t, true>(bufferpc0 + x);
-            auto srcn1 = sse_load_si128<uint8_t, true>(bufferpn1 + x);
-
-            auto srcp1_lo = _mm_unpacklo_epi8(srcp1, const_0);
-            auto srcc0_lo = _mm_unpacklo_epi8(srcc0, const_0);
-            auto srcn1_lo = _mm_unpacklo_epi8(srcn1, const_0);
-
-            auto srcp1_hi = _mm_unpackhi_epi8(srcp1, const_0);
-            auto srcc0_hi = _mm_unpackhi_epi8(srcc0, const_0);
-            auto srcn1_hi = _mm_unpackhi_epi8(srcn1, const_0);
-
-            auto sum_lo = _mm_add_epi16(srcp1_lo, srcc0_lo);
-            auto sum_hi = _mm_add_epi16(srcp1_hi, srcc0_hi);
-
-            sum_lo = _mm_add_epi16(sum_lo, srcn1_lo);
-            sum_hi = _mm_add_epi16(sum_hi, srcn1_hi);
-
-            sse_store_si128<int16_t, true>(bufferTempc + x, sum_lo);
-            sse_store_si128<int16_t, true>(bufferTempc + x + pixelStep2, sum_hi);
-        }
-
-        processBuffersBlock_sse<BorderMode::LEFT>(bufferpc0, bufferTempc, 0);
-
-        for (int x = pixelStep; x < bufferStride - pixelStep; x += pixelStep)
-            processBuffersBlock_sse<BorderMode::NONE>(bufferpc0, bufferTempc, x);
-
-        processBuffersBlock_sse<BorderMode::RIGHT>(bufferpc0, bufferTempc, bufferStride - pixelStep);
-
-        bufferpc0 += bufferStride;
-        bufferpp1 += bufferStride;
-        bufferpn1 += bufferStride;
-    }
-}
-
-static inline void processBuffers_org_sse(uint16_t *bufferp, int32_t *bufferTemp, const int bufferStride, const int bufferHeight)
-{
-    auto bufferpp1 = bufferp;
-    auto bufferpc0 = bufferpp1 + bufferStride;
-    auto bufferpn1 = bufferpc0 + bufferStride;
-    auto bufferTempc = bufferTemp + bufferStride;
-
-    constexpr int pixelStep = sseBytes / sizeof(uint16_t);
-    constexpr int pixelStep2 = sseBytes / sizeof(int32_t);
-
-    for (int y = 0; y < bufferHeight - 1; ++y) {
-
-        const auto const_0 = _mm_setzero_si128();
-
-        for (int x = 0; x < bufferStride; x += pixelStep) {
-
-            auto srcp1 = sse_load_si128<uint16_t, true>(bufferpp1 + x);
-            auto srcc0 = sse_load_si128<uint16_t, true>(bufferpc0 + x);
-            auto srcn1 = sse_load_si128<uint16_t, true>(bufferpn1 + x);
-
-            auto srcp1_lo = _mm_unpacklo_epi16(srcp1, const_0);
-            auto srcc0_lo = _mm_unpacklo_epi16(srcc0, const_0);
-            auto srcn1_lo = _mm_unpacklo_epi16(srcn1, const_0);
-
-            auto srcp1_hi = _mm_unpackhi_epi16(srcp1, const_0);
-            auto srcc0_hi = _mm_unpackhi_epi16(srcc0, const_0);
-            auto srcn1_hi = _mm_unpackhi_epi16(srcn1, const_0);
-
-            auto sum_lo = _mm_add_epi32(srcp1_lo, srcc0_lo);
-            auto sum_hi = _mm_add_epi32(srcp1_hi, srcc0_hi);
-
-            sum_lo = _mm_add_epi32(sum_lo, srcn1_lo);
-            sum_hi = _mm_add_epi32(sum_hi, srcn1_hi);
-
-            sse_store_si128<int32_t, true>(bufferTempc + x, sum_lo);
-            sse_store_si128<int32_t, true>(bufferTempc + x + pixelStep2, sum_hi);
-        }
-
-        processBuffersBlock_sse<BorderMode::LEFT>(bufferpc0, bufferTempc, 0);
-
-        for (int x = pixelStep; x < bufferStride - pixelStep; x += pixelStep)
-            processBuffersBlock_sse<BorderMode::NONE>(bufferpc0, bufferTempc, x);
-
-        processBuffersBlock_sse<BorderMode::RIGHT>(bufferpc0, bufferTempc, bufferStride - pixelStep);
-
-
-        bufferpc0 += bufferStride;
-        bufferpp1 += bufferStride;
-        bufferpn1 += bufferStride;
-    }
-}
-
-static inline void processBuffers_org_sse(float *bufferp, float *bufferTemp, const int bufferStride, const int bufferHeight)
-{
-    auto bufferpp1 = bufferp;
-    auto bufferpc0 = bufferpp1 + bufferStride;
-    auto bufferpn1 = bufferpc0 + bufferStride;
-    auto bufferTempc = bufferTemp + bufferStride;
 
     constexpr int pixelStep = sseBytes / sizeof(float);
 
@@ -1297,15 +1072,15 @@ static inline void processBuffers_org_sse(float *bufferp, float *bufferTemp, con
 
             sum = _mm_add_ps(sum, srcn1);
 
-            sse_store_ps<float, true>(bufferTempc + x, sum);
+            sse_store_ps<float, true>(bufferLine + x, sum);
         }
 
-        processBuffersBlock_sse<BorderMode::LEFT>(bufferpc0, bufferTempc, 0);
+        processBuffersBlock_sse<BorderMode::LEFT>(bufferpc0, bufferLine, 0);
 
         for (int x = pixelStep; x < bufferStride - pixelStep; x += pixelStep)
-            processBuffersBlock_sse<BorderMode::NONE>(bufferpc0, bufferTempc, x);
+            processBuffersBlock_sse<BorderMode::NONE>(bufferpc0, bufferLine, x);
 
-        processBuffersBlock_sse<BorderMode::RIGHT>(bufferpc0, bufferTempc, bufferStride - pixelStep);
+        processBuffersBlock_sse<BorderMode::RIGHT>(bufferpc0, bufferLine, bufferStride - pixelStep);
 
 
         bufferpc0 += bufferStride;
@@ -1317,28 +1092,27 @@ static inline void processBuffers_org_sse(float *bufferp, float *bufferTemp, con
 #endif
 
 template <typename T, typename IType>
-static inline void processBuffers_org_c(T *bufferp, IType *bufferTemp, const int bufferStride, const int bufferHeight)
+static inline void processBuffers_c(T *bufferp, IType *bufferLine, const int bufferStride, const int bufferHeight)
 {
     auto bufferpc = bufferp + bufferStride;
     auto bufferpp1 = bufferpc - bufferStride;
     auto bufferpn1 = bufferpc + bufferStride;
-    auto bufferTempc = bufferTemp + bufferStride;
 
     for (int y = 0; y < bufferHeight - 1; ++y) {
 
         for (int x = 0; x < bufferStride; ++x) {
-            bufferTempc[x] = bufferpp1[x] + bufferpc[x] + bufferpn1[x];
+            bufferLine[x] = bufferpp1[x] + bufferpc[x] + bufferpn1[x];
         }
 
         for (int x = 0; x < bufferStride; ++x) {
 
-            const IType currLineM3 = loadPixel<IType, IType>(bufferTempc, x, -3, bufferStride);
-            const IType currLineM2 = loadPixel<IType, IType>(bufferTempc, x, -2, bufferStride);
-            const IType currLineM1 = loadPixel<IType, IType>(bufferTempc, x, -1, bufferStride);
-            const IType currLine   = bufferTempc[x];
-            const IType currLineP1 = loadPixel<IType, IType>(bufferTempc, x, 1, bufferStride);
-            const IType currLineP2 = loadPixel<IType, IType>(bufferTempc, x, 2, bufferStride);
-            const IType currLineP3 = loadPixel<IType, IType>(bufferTempc, x, 3, bufferStride);
+            const IType currLineM3 = loadPixel<IType, IType>(bufferLine, x, -3, bufferStride);
+            const IType currLineM2 = loadPixel<IType, IType>(bufferLine, x, -2, bufferStride);
+            const IType currLineM1 = loadPixel<IType, IType>(bufferLine, x, -1, bufferStride);
+            const IType currLine   = bufferLine[x];
+            const IType currLineP1 = loadPixel<IType, IType>(bufferLine, x, 1, bufferStride);
+            const IType currLineP2 = loadPixel<IType, IType>(bufferLine, x, 2, bufferStride);
+            const IType currLineP3 = loadPixel<IType, IType>(bufferLine, x, 3, bufferStride);
 
             bufferpc[x] = (currLineM3 + currLineM2 + currLineM1 + currLine + currLineP1 + currLineP2 + currLineP3) / 16;
         }
@@ -1788,17 +1562,12 @@ inline void finalizePlane_c<float, float>(float *dstp, const int dstStride, cons
 #ifdef VS_TARGET_CPU_X86
 
 template <typename T, typename IType>
-static inline void sangnom_sse(T *dstp, const int dstStride, const int w, const int h, SangNomData *d, int plane, T *buffers[TOTAL_BUFFERS], IType *bufferTemp)
+static inline void sangnom_sse(T *dstp, const int dstStride, const int w, const int h, SangNomData *d, int plane, T *buffers[TOTAL_BUFFERS], IType *bufferLine)
 {
     prepareBuffers_sse<T, IType>(dstp + d->offset * dstStride, dstStride, w, h, d->bufferStride, buffers);
 
-    if (d->algo == SNAT_ORG) {
-        for (int i = 0; i < TOTAL_BUFFERS; ++i)
-            processBuffers_org_sse(buffers[i], bufferTemp, d->bufferStride, d->bufferHeight);
-    } else if (d->algo == SNAT_NEW) {
-        for (int i = 0; i < TOTAL_BUFFERS; ++i)
-            processBuffers_new_sse(buffers[i], bufferTemp, d->bufferStride, d->bufferHeight);
-    }
+    for (int i = 0; i < TOTAL_BUFFERS; ++i)
+        processBuffers_sse(buffers[i], bufferLine, d->bufferStride, d->bufferHeight);
 
     finalizePlane_sse<T, IType>(dstp + d->offset * dstStride, dstStride, w, h, d->bufferStride, d->aaf[plane], buffers);
 }
@@ -1806,17 +1575,12 @@ static inline void sangnom_sse(T *dstp, const int dstStride, const int w, const 
 #endif
 
 template <typename T, typename IType>
-static inline void sangnom_c(T *dstp, const int dstStride, const int w, const int h, SangNomData *d, int plane, T *buffers[TOTAL_BUFFERS], IType *bufferTemp)
+static inline void sangnom_c(T *dstp, const int dstStride, const int w, const int h, SangNomData *d, int plane, T *buffers[TOTAL_BUFFERS], IType *bufferLine)
 {
     prepareBuffers_c<T, IType>(dstp + d->offset * dstStride, dstStride, w, h, d->bufferStride, buffers);
 
-    if (d->algo == SNAT_ORG) {
-        for (int i = 0; i < TOTAL_BUFFERS; ++i)
-            processBuffers_org_c<T, IType>(buffers[i], bufferTemp, d->bufferStride, d->bufferHeight);
-    } else if (d->algo == SNAT_NEW) {
-        for (int i = 0; i < TOTAL_BUFFERS; ++i)
-            processBuffers_new_c<T, IType>(buffers[i], bufferTemp, d->bufferStride, d->bufferHeight);
-    }
+    for (int i = 0; i < TOTAL_BUFFERS; ++i)
+        processBuffers_c<T, IType>(buffers[i], bufferLine, d->bufferStride, d->bufferHeight);
 
     finalizePlane_c<T, IType>(dstp + d->offset * dstStride, dstStride, w, h, d->bufferStride, d->aaf[plane], buffers);
 }
@@ -1842,31 +1606,32 @@ static const VSFrameRef *VS_CC sangnomGetFrame(int n, int activationReason, void
         auto dst = vsapi->newVideoFrame(d->ovi.format, d->ovi.width, d->ovi.height, src, core);
 
         /////////////////////////////////////////////////////////////////////////////////////
-        void *bufferPool;
-        void *buffers[TOTAL_BUFFERS];
+        void *bufferLine;               // line buffer used in process buffers
 
-        void *bufferTemp;
+        void *bufferPool;
+        void *buffers[TOTAL_BUFFERS];   // plane buffers used in all three steps
+
 
         if (d->vi->format->sampleType == stInteger) {
             if (d->vi->format->bitsPerSample == 8) {
+                bufferLine = vs_aligned_malloc<void>(sizeof(int16_t) * d->bufferStride, alignment);
                 bufferPool = vs_aligned_malloc<void>(sizeof(uint8_t) * d->bufferStride * (d->bufferHeight + 1) * TOTAL_BUFFERS, alignment);
                 // separate bufferpool to multiple pieces
                 for (int i = 0; i < TOTAL_BUFFERS; ++i)
                     buffers[i] = reinterpret_cast<uint8_t*>(bufferPool) + i * d->bufferStride * (d->bufferHeight + 1);
-                bufferTemp = vs_aligned_malloc<void>(sizeof(int16_t) * d->bufferStride * (d->bufferHeight + 1), alignment);
             } else {
+                bufferLine = vs_aligned_malloc<void>(sizeof(int32_t) * d->bufferStride, alignment);
                 bufferPool = vs_aligned_malloc<void>(sizeof(uint16_t) * d->bufferStride * (d->bufferHeight + 1) * TOTAL_BUFFERS, alignment);
                 // separate bufferpool to multiple pieces
                 for (int i = 0; i < TOTAL_BUFFERS; ++i)
                     buffers[i] = reinterpret_cast<uint16_t*>(bufferPool) + i * d->bufferStride * (d->bufferHeight + 1);
-                bufferTemp = vs_aligned_malloc<void>(sizeof(int32_t) * d->bufferStride * (d->bufferHeight + 1), alignment);
             }
         } else {
+            bufferLine = vs_aligned_malloc<void>(sizeof(float) * d->bufferStride, alignment);
             bufferPool = vs_aligned_malloc<void>(sizeof(float) * d->bufferStride * (d->bufferHeight + 1) * TOTAL_BUFFERS, alignment);
             // separate bufferpool to multiple pieces
             for (int i = 0; i < TOTAL_BUFFERS; ++i)
                 buffers[i] = reinterpret_cast<float*>(bufferPool) + i * d->bufferStride * (d->bufferHeight + 1);
-            bufferTemp = vs_aligned_malloc<void>(sizeof(float) * d->bufferStride * (d->bufferHeight + 1), alignment);
         }
         /////////////////////////////////////////////////////////////////////////////////////
 
@@ -1915,27 +1680,27 @@ static const VSFrameRef *VS_CC sangnomGetFrame(int n, int activationReason, void
 
             if (d->vi->format->sampleType == stInteger) {
                 if (d->vi->format->bitsPerSample == 8)
-                    sangnom_sse<uint8_t, int16_t>(dstp, dstStride, width, height, d, plane, reinterpret_cast<uint8_t**>(buffers), reinterpret_cast<int16_t*>(bufferTemp));
+                    sangnom_sse<uint8_t, int16_t>(dstp, dstStride, width, height, d, plane, reinterpret_cast<uint8_t**>(buffers), reinterpret_cast<int16_t*>(bufferLine));
                 else
-                    sangnom_sse<uint16_t, int32_t>(reinterpret_cast<uint16_t*>(dstp), dstStride, width, height, d, plane, reinterpret_cast<uint16_t**>(buffers), reinterpret_cast<int32_t*>(bufferTemp));
+                    sangnom_sse<uint16_t, int32_t>(reinterpret_cast<uint16_t*>(dstp), dstStride, width, height, d, plane, reinterpret_cast<uint16_t**>(buffers), reinterpret_cast<int32_t*>(bufferLine));
             } else {
-                sangnom_sse<float, float>(reinterpret_cast<float*>(dstp), dstStride, width, height, d, plane, reinterpret_cast<float**>(buffers), reinterpret_cast<float*>(bufferTemp));
+                sangnom_sse<float, float>(reinterpret_cast<float*>(dstp), dstStride, width, height, d, plane, reinterpret_cast<float**>(buffers), reinterpret_cast<float*>(bufferLine));
             }
 #else
 
             if (d->vi->format->sampleType == stInteger) {
                 if (d->vi->format->bitsPerSample == 8)
-                    sangnom_c<uint8_t, int16_t>(dstp, dstStride, width, height, d, plane, reinterpret_cast<uint8_t**>(buffers), reinterpret_cast<int16_t*>(bufferTemp));
+                    sangnom_c<uint8_t, int16_t>(dstp, dstStride, width, height, d, plane, reinterpret_cast<uint8_t**>(buffers), reinterpret_cast<int16_t*>(bufferLine));
                 else
-                    sangnom_c<uint16_t, int32_t>(reinterpret_cast<uint16_t*>(dstp), dstStride, width, height, d, plane, reinterpret_cast<uint16_t**>(buffers), reinterpret_cast<int32_t*>(bufferTemp));
+                    sangnom_c<uint16_t, int32_t>(reinterpret_cast<uint16_t*>(dstp), dstStride, width, height, d, plane, reinterpret_cast<uint16_t**>(buffers), reinterpret_cast<int32_t*>(bufferLine));
             } else {
-                sangnom_c<float, float>(reinterpret_cast<float*>(dstp), dstStride, width, height, d, plane, reinterpret_cast<float**>(buffers), reinterpret_cast<float*>(bufferTemp));
+                sangnom_c<float, float>(reinterpret_cast<float*>(dstp), dstStride, width, height, d, plane, reinterpret_cast<float**>(buffers), reinterpret_cast<float*>(bufferLine));
             }
 
 #endif
         }
 
-        vs_aligned_free(bufferTemp);
+        vs_aligned_free(bufferLine);
         vs_aligned_free(bufferPool);
 
         vsapi->freeFrame(src);
@@ -1990,12 +1755,6 @@ static void VS_CC sangnomCreate(const VSMap *in, VSMap *out, void *userData, VSC
             for (int plane = numAA; plane < d->vi->format->numPlanes; ++plane)
                 d->aa[plane] = d->aa[numAA - 1];
         }
-
-        d->algo = int64ToIntS(vsapi->propGetInt(in, "algo", 0, &err));
-        if (err) d->algo = SNAT_ORG;
-
-        if (d->algo != SNAT_ORG && d->algo != SNAT_NEW)
-            throw std::string("algo must be 0 or 1");
 
 
         for (int i = 0; i < 3; ++i)
@@ -2056,7 +1815,6 @@ VS_EXTERNAL_API(void) VapourSynthPluginInit(VSConfigPlugin configFunc, VSRegiste
         "order:int:opt;"
         "dh:int:opt;"
         "aa:int[]:opt;"
-        "algo:int:opt;"
         "planes:int[]:opt;",
         sangnomCreate, nullptr, plugin);
 }

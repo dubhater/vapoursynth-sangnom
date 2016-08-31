@@ -24,12 +24,12 @@
 
 ## Usage ##
 
-    sangnom.SangNom(src, order=1, aa=48, algo=0, planes=[0, 1, 2])
+    sangnom.SangNom(src, order=1, aa=48, planes=[0, 1, 2])
 
 *   the default setting, interpolates bottom field for all planes.
 ***
 
-    sangnom.SangNom(src, order=1, aa=[48, 0, 0], algo=0, planes=[0, 1, 2])
+    sangnom.SangNom(src, order=1, aa=[48, 0, 0], planes=[0, 1, 2])
 
 *   this simulates the default setting of AviSynth SangNom2
 ***
@@ -37,7 +37,7 @@
 
 ## Parameter ##
 
-    sangnom.SangNom(clip clip[, int order=1, bint dh=False, int[] aa=[48, 48, 48], int algo=0, int[] planes=[0, 1, 2]])
+    sangnom.SangNom(clip clip[, int order=1, bint dh=False, int[] aa=[48, 48, 48], int[] planes=[0, 1, 2]])
 
 *   clip: the src clip
     *   8..16 bit integer, 32 bit float support
@@ -61,12 +61,6 @@
     *   range: 0 ... 128
     *   note: the value of previous plane will be used if you don't specify it.
     *   note: in AviSynth SangNom2, the default is aa=[48, 0, 0]
-
-***
-*   algo: the algorithm which to use
-    *   default: 0 (int)
-    *   0: the orignal one which compute the same result as AVISynth SangNom2
-    *   1: the modified one which should be more accurate but much slower on performance
 
 ***
 *   planes: planes which are processed
