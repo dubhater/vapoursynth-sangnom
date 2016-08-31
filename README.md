@@ -37,7 +37,7 @@
 
 ## Parameter ##
 
-    sangnom.SangNom(clip clip[, int order=1, int[] aa=[48, 48, 48], int algo=0, int[] planes=[0, 1, 2]])
+    sangnom.SangNom(clip clip[, int order=1, bint dh=False, int[] aa=[48, 48, 48], int algo=0, int[] planes=[0, 1, 2]])
 
 *   clip: the src clip
     *   8..16 bit integer, 32 bit float support
@@ -49,6 +49,11 @@
         *   0:  double frame rate, must call DoubleWeave() before processing
         *   1:  single frame rate, keep top field
         *   2:  single frame rate, keep bottom field
+
+***
+*   dh: doubles the height of the input. each line of the input is copied to every other line of the output and the missing lines are interpolated.
+    *   default: False (bool)
+        *   note: if dh=True, it will force all planes to be processed.
 
 ***
 *   aa: the strength of anti-aliasing, this value is considered in 8 bit clip
@@ -66,6 +71,7 @@
 ***
 *   planes: planes which are processed
     *   default: [0, 1, 2]
+        *   note: if dh=True, it will force all planes to be processed.
 
 ***
 

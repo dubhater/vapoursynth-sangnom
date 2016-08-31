@@ -1,5 +1,7 @@
 
-r37
+r39
+    add new param dh.
+    fix a bug that keep bottom field donesn't work.
     add support for specifying aa values for different planes by using array.
 r37
 

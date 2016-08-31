@@ -13,6 +13,7 @@
 
 #include <cstdint>
 #include <cmath>
+#include <cstring>
 #include <algorithm>
 #include <string>
 
@@ -26,9 +27,11 @@ static const size_t alignment = 32;
 typedef struct SangNomData
 {
     VSNodeRef *node;
-    const VSVideoInfo *vi;
+    const VSVideoInfo *vi;  // input video info
+    VSVideoInfo ovi;        // output video info
 
     int order;
+    int dh;
     int aa[3];
     int algo;
     bool planes[3];
@@ -635,20 +638,6 @@ static inline IType calculateSangNom(const T &p1, const T &p2, const T &p3)
 {
     IType sum = p1 * 5 + p2 * 4 - p3;
     return sum / 8;
-}
-
-template <typename T>
-static inline void copyField(const T *srcp, const int srcStride, T *dstp, const int dstStride, const int w, const int h, SangNomData *d)
-{
-    if (d->offset == 0) {
-        // keep top field so the bottom line can't be interpolated
-        // just copy the data from its correspond top field
-        memcpy(dstp + (h - 1) * dstStride, srcp + (h - 2) * srcStride, w * sizeof(T));
-    } else {
-        // keep bottom field so the top line can't be interpolated
-        // just copy the data from its correspond bottom field
-        memcpy(dstp, srcp + srcStride, w * sizeof(T));
-    }
 }
 
 #ifdef VS_TARGET_CPU_X86
@@ -1611,9 +1600,10 @@ static inline void finalizePlaneLine_sse(const float *srcp, const float *srcpn2,
 }
 
 template <typename T, typename IType>
-static inline void finalizePlane_sse(const T *srcp, const int srcStride, T *dstp, const int dstStride, const int w, const int h, const int bufferStride, const T aaf, T *buffers[TOTAL_BUFFERS])
+static inline void finalizePlane_sse(T *dstp, const int dstStride, const int w, const int h, const int bufferStride, const T aaf, T *buffers[TOTAL_BUFFERS])
 {
-    auto srcpn2 = srcp + srcStride * 2;
+    auto srcp = dstp;
+    auto srcpn2 = srcp + dstStride * 2;
     auto dstpn = dstp + dstStride;
 
     int bufferOffset = bufferStride;
@@ -1627,8 +1617,8 @@ static inline void finalizePlane_sse(const T *srcp, const int srcStride, T *dstp
         finalizePlaneLine_sse<BorderMode::NONE, true, true, true>(srcp + pixelStep, srcpn2 + pixelStep, dstpn + pixelStep, buffers, bufferOffset + pixelStep, wMod - pixelStep, pixelStep, aaf);
         finalizePlaneLine_sse<BorderMode::RIGHT, false, false, false>(srcp + w - pixelStep, srcpn2 + w - pixelStep, dstpn + w - pixelStep, buffers, bufferOffset + w - pixelStep, pixelStep, pixelStep, aaf);
 
-        srcp += srcStride * 2;
-        srcpn2 += srcStride * 2;
+        srcp += dstStride * 2;
+        srcpn2 += dstStride * 2;
         dstpn += dstStride * 2;
         bufferOffset += bufferStride;
     }
@@ -1637,9 +1627,10 @@ static inline void finalizePlane_sse(const T *srcp, const int srcStride, T *dstp
 #endif
 
 template <typename T, typename IType>
-static inline void finalizePlane_c(const T *srcp, const int srcStride, T *dstp, const int dstStride, const int w, const int h, const int bufferStride, const T aaf, T *buffers[TOTAL_BUFFERS])
+static inline void finalizePlane_c(T *dstp, const int dstStride, const int w, const int h, const int bufferStride, const T aaf, T *buffers[TOTAL_BUFFERS])
 {
-    auto srcpn2 = srcp + srcStride * 2;
+    auto srcp = dstp;
+    auto srcpn2 = srcp + dstStride * 2;
     auto dstpn = dstp + dstStride;
 
     int bufferOffset = bufferStride;
@@ -1707,17 +1698,18 @@ static inline void finalizePlane_c(const T *srcp, const int srcStride, T *dstp, 
             }
         }
 
-        srcp += srcStride * 2;
-        srcpn2 += srcStride * 2;
+        srcp += dstStride * 2;
+        srcpn2 += dstStride * 2;
         dstpn += dstStride * 2;
         bufferOffset += bufferStride;
     }
 }
 
 template <>
-inline void finalizePlane_c<float, float>(const float *srcp, const int srcStride, float *dstp, const int dstStride, const int w, const int h, const int bufferStride, const float aaf, float *buffers[TOTAL_BUFFERS])
+inline void finalizePlane_c<float, float>(float *dstp, const int dstStride, const int w, const int h, const int bufferStride, const float aaf, float *buffers[TOTAL_BUFFERS])
 {
-    auto srcpn2 = srcp + srcStride * 2;
+    auto srcp = dstp;
+    auto srcpn2 = srcp + dstStride * 2;
     auto dstpn = dstp + dstStride;
 
     int bufferOffset = bufferStride;
@@ -1785,8 +1777,8 @@ inline void finalizePlane_c<float, float>(const float *srcp, const int srcStride
             }
         }
 
-        srcp += srcStride * 2;
-        srcpn2 += srcStride * 2;
+        srcp += dstStride * 2;
+        srcpn2 += dstStride * 2;
         dstpn += dstStride * 2;
         bufferOffset += bufferStride;
     }
@@ -1796,11 +1788,9 @@ inline void finalizePlane_c<float, float>(const float *srcp, const int srcStride
 #ifdef VS_TARGET_CPU_X86
 
 template <typename T, typename IType>
-static inline void sangnom_sse(const T *srcp, const int srcStride, T *dstp, const int dstStride, const int w, const int h, SangNomData *d, int plane, T *buffers[TOTAL_BUFFERS], IType *bufferTemp)
+static inline void sangnom_sse(T *dstp, const int dstStride, const int w, const int h, SangNomData *d, int plane, T *buffers[TOTAL_BUFFERS], IType *bufferTemp)
 {
-    copyField<T>(srcp, srcStride, dstp, dstStride, w, h, d);
-
-    prepareBuffers_sse<T, IType>(srcp + d->offset * srcStride, srcStride, w, h, d->bufferStride, buffers);
+    prepareBuffers_sse<T, IType>(dstp + d->offset * dstStride, dstStride, w, h, d->bufferStride, buffers);
 
     if (d->algo == SNAT_ORG) {
         for (int i = 0; i < TOTAL_BUFFERS; ++i)
@@ -1810,17 +1800,15 @@ static inline void sangnom_sse(const T *srcp, const int srcStride, T *dstp, cons
             processBuffers_new_sse(buffers[i], bufferTemp, d->bufferStride, d->bufferHeight);
     }
 
-    finalizePlane_sse<T, IType>(srcp + d->offset * srcStride, srcStride, dstp + d->offset * dstStride, dstStride, w, h, d->bufferStride, d->aaf[plane], buffers);
+    finalizePlane_sse<T, IType>(dstp + d->offset * dstStride, dstStride, w, h, d->bufferStride, d->aaf[plane], buffers);
 }
 
 #endif
 
 template <typename T, typename IType>
-static inline void sangnom_c(const T *srcp, const int srcStride, T *dstp, const int dstStride, const int w, const int h, SangNomData *d, int plane, T *buffers[TOTAL_BUFFERS], IType *bufferTemp)
+static inline void sangnom_c(T *dstp, const int dstStride, const int w, const int h, SangNomData *d, int plane, T *buffers[TOTAL_BUFFERS], IType *bufferTemp)
 {
-    copyField<T>(srcp, srcStride, dstp, dstStride, w, h, d);
-
-    prepareBuffers_c<T, IType>(srcp + d->offset * srcStride, srcStride, w, h, d->bufferStride, buffers);
+    prepareBuffers_c<T, IType>(dstp + d->offset * dstStride, dstStride, w, h, d->bufferStride, buffers);
 
     if (d->algo == SNAT_ORG) {
         for (int i = 0; i < TOTAL_BUFFERS; ++i)
@@ -1830,13 +1818,13 @@ static inline void sangnom_c(const T *srcp, const int srcStride, T *dstp, const 
             processBuffers_new_c<T, IType>(buffers[i], bufferTemp, d->bufferStride, d->bufferHeight);
     }
 
-    finalizePlane_c<T, IType>(srcp + d->offset * srcStride, srcStride, dstp + d->offset * dstStride, dstStride, w, h, d->bufferStride, d->aaf[plane], buffers);
+    finalizePlane_c<T, IType>(dstp + d->offset * dstStride, dstStride, w, h, d->bufferStride, d->aaf[plane], buffers);
 }
 
 static void VS_CC sangnomInit(VSMap *in, VSMap *out, void **instanceData, VSNode* node, VSCore *core, const VSAPI *vsapi)
 {
     SangNomData *d = reinterpret_cast<SangNomData*> (*instanceData);
-    vsapi->setVideoInfo(d->vi, 1, node);
+    vsapi->setVideoInfo(&d->ovi, 1, node);
 }
 
 static const VSFrameRef *VS_CC sangnomGetFrame(int n, int activationReason, void **instanceData, void **frameData, VSFrameContext *frameCtx, VSCore *core, const VSAPI *vsapi)
@@ -1850,7 +1838,8 @@ static const VSFrameRef *VS_CC sangnomGetFrame(int n, int activationReason, void
     } else if (activationReason == arAllFramesReady) {
 
         auto src = vsapi->getFrameFilter(n, d->node, frameCtx);
-        auto dst = vsapi->copyFrame(src, core);
+        //auto dst = vsapi->copyFrame(src, core);
+        auto dst = vsapi->newVideoFrame(d->ovi.format, d->ovi.width, d->ovi.height, src, core);
 
         /////////////////////////////////////////////////////////////////////////////////////
         void *bufferPool;
@@ -1883,35 +1872,64 @@ static const VSFrameRef *VS_CC sangnomGetFrame(int n, int activationReason, void
 
         for (int plane = 0; plane < d->vi->format->numPlanes; ++plane) {
 
-            if (!d->planes[plane])
-                continue;
-
             auto srcp = vsapi->getReadPtr(src, plane);
-            auto srcStride = vsapi->getStride(src, plane) / d->vi->format->bytesPerSample;
             auto dstp = vsapi->getWritePtr(dst, plane);
             auto dstStride = vsapi->getStride(dst, plane) / d->vi->format->bytesPerSample;
-            auto width = vsapi->getFrameWidth(src, plane);
-            auto height = vsapi->getFrameHeight(src, plane);
+            auto width = vsapi->getFrameWidth(dst, plane);
+            auto height = vsapi->getFrameHeight(dst, plane);
+
+            if (d->dh) {
+                // always process the plane if dh=true
+                // copy target field
+                vs_bitblt(dstp + d->offset * vsapi->getStride(dst, plane), vsapi->getStride(dst, plane) * 2,
+                          srcp, vsapi->getStride(src, plane),
+                          vsapi->getFrameWidth(dst, plane) * d->vi->format->bytesPerSample, vsapi->getFrameHeight(src, plane));
+            } else {
+                if (!d->planes[plane]) {
+                    // copy whole plane
+                    std::memcpy(dstp, srcp, vsapi->getStride(src, plane) * vsapi->getFrameHeight(src, plane));
+                    continue;
+                }
+                // copy target field
+                vs_bitblt(dstp + d->offset * vsapi->getStride(dst, plane), vsapi->getStride(dst, plane) * 2,
+                          srcp + d->offset * vsapi->getStride(src, plane), vsapi->getStride(src, plane) * 2,
+                          vsapi->getFrameWidth(dst, plane) * d->vi->format->bytesPerSample, vsapi->getFrameHeight(src, plane) / 2);
+            }
+
+            // copy the field which can't be interpolated
+            if (d->offset == 0) {
+                // keep top field so the bottom line can't be interpolated
+                // just copy the data from its correspond top field
+                std::memcpy(dstp + (height - 1) * vsapi->getStride(dst, plane),
+                            dstp + (height - 2) * vsapi->getStride(dst, plane),
+                            vsapi->getFrameWidth(dst, plane) * d->vi->format->bytesPerSample);
+            } else {
+                // keep bottom field so the top line can't be interpolated
+                // just copy the data from its correspond bottom field
+                std::memcpy(dstp,
+                            dstp + vsapi->getStride(dst, plane),
+                            vsapi->getFrameWidth(dst, plane) * d->vi->format->bytesPerSample);
+            }
 
 #ifdef VS_TARGET_CPU_X86
 
             if (d->vi->format->sampleType == stInteger) {
                 if (d->vi->format->bitsPerSample == 8)
-                    sangnom_sse<uint8_t, int16_t>(srcp, srcStride, dstp, dstStride, width, height, d, plane, reinterpret_cast<uint8_t**>(buffers), reinterpret_cast<int16_t*>(bufferTemp));
+                    sangnom_sse<uint8_t, int16_t>(dstp, dstStride, width, height, d, plane, reinterpret_cast<uint8_t**>(buffers), reinterpret_cast<int16_t*>(bufferTemp));
                 else
-                    sangnom_sse<uint16_t, int32_t>(reinterpret_cast<const uint16_t*>(srcp), srcStride, reinterpret_cast<uint16_t*>(dstp), dstStride, width, height, d, plane, reinterpret_cast<uint16_t**>(buffers), reinterpret_cast<int32_t*>(bufferTemp));
+                    sangnom_sse<uint16_t, int32_t>(reinterpret_cast<uint16_t*>(dstp), dstStride, width, height, d, plane, reinterpret_cast<uint16_t**>(buffers), reinterpret_cast<int32_t*>(bufferTemp));
             } else {
-                sangnom_sse<float, float>(reinterpret_cast<const float*>(srcp), srcStride, reinterpret_cast<float*>(dstp), dstStride, width, height, d, plane, reinterpret_cast<float**>(buffers), reinterpret_cast<float*>(bufferTemp));
+                sangnom_sse<float, float>(reinterpret_cast<float*>(dstp), dstStride, width, height, d, plane, reinterpret_cast<float**>(buffers), reinterpret_cast<float*>(bufferTemp));
             }
 #else
 
             if (d->vi->format->sampleType == stInteger) {
                 if (d->vi->format->bitsPerSample == 8)
-                    sangnom_c<uint8_t, int16_t>(srcp, srcStride, dstp, dstStride, width, height, d, plane, reinterpret_cast<uint8_t**>(buffers), reinterpret_cast<int16_t*>(bufferTemp));
+                    sangnom_c<uint8_t, int16_t>(dstp, dstStride, width, height, d, plane, reinterpret_cast<uint8_t**>(buffers), reinterpret_cast<int16_t*>(bufferTemp));
                 else
-                    sangnom_c<uint16_t, int32_t>(reinterpret_cast<const uint16_t*>(srcp), srcStride, reinterpret_cast<uint16_t*>(dstp), dstStride, width, height, d, plane, reinterpret_cast<uint16_t**>(buffers), reinterpret_cast<int32_t*>(bufferTemp));
+                    sangnom_c<uint16_t, int32_t>(reinterpret_cast<uint16_t*>(dstp), dstStride, width, height, d, plane, reinterpret_cast<uint16_t**>(buffers), reinterpret_cast<int32_t*>(bufferTemp));
             } else {
-                sangnom_c<float, float>(reinterpret_cast<const float*>(srcp), srcStride, reinterpret_cast<float*>(dstp), dstStride, width, height, d, plane, reinterpret_cast<float**>(buffers), reinterpret_cast<float*>(bufferTemp));
+                sangnom_c<float, float>(reinterpret_cast<float*>(dstp), dstStride, width, height, d, plane, reinterpret_cast<float**>(buffers), reinterpret_cast<float*>(bufferTemp));
             }
 
 #endif
@@ -1954,6 +1972,10 @@ static void VS_CC sangnomCreate(const VSMap *in, VSMap *out, void *userData, VSC
 
         if (d->order < 0 || d->order > 2)
             throw std::string("order must be 0 ... 2");
+
+        d->dh = !!vsapi->propGetInt(in, "dh", 0, &err);
+        if (err)
+            d->dh = false;
 
         int numAA = vsapi->propNumElements(in, "aa");
         if (numAA <= 0) {
@@ -2015,9 +2037,14 @@ static void VS_CC sangnomCreate(const VSMap *in, VSMap *out, void *userData, VSC
             d->aaf[plane] = (d->aa[plane] * 21.0f / 16.0f) / 256.0f;
     }
 
+    // set the output video info, depends on dh
+    d->ovi = *d->vi;
+    if (d->dh)
+        d->ovi.height *= 2;
+
     // calculate the buffer size
-    d->bufferStride = (d->vi->width + alignment - 1) & ~(alignment - 1);
-    d->bufferHeight = (d->vi->height + 1) >> 1;
+    d->bufferStride = (d->ovi.width + alignment - 1) & ~(alignment - 1);
+    d->bufferHeight = (d->ovi.height + 1) >> 1;
 
     vsapi->createFilter(in, out, "sangnom", sangnomInit, sangnomGetFrame, sangnomFree, fmParallel, 0, d, core);
 }
@@ -2027,6 +2054,7 @@ VS_EXTERNAL_API(void) VapourSynthPluginInit(VSConfigPlugin configFunc, VSRegiste
     configFunc("com.mio.sangnom", "sangnom", "VapourSynth Single Field Deinterlacer", VAPOURSYNTH_API_VERSION, 1, plugin);
     registerFunc("SangNom", "clip:clip;"
         "order:int:opt;"
+        "dh:int:opt;"
         "aa:int[]:opt;"
         "algo:int:opt;"
         "planes:int[]:opt;",
