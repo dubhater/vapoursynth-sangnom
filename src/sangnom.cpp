@@ -2004,7 +2004,7 @@ static void VS_CC sangnomCreate(const VSMap *in, VSMap *out, void *userData, VSC
     if (d->order == SNOT_DFR) {
         d->offset = 0;  // keep top field
     } else {
-        d->offset = !d->order;
+        d->offset = d->order - 1;
     }
 
     // tweak aa value for different format
