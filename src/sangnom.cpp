@@ -36,7 +36,6 @@ typedef struct SangNomData
     bool planes[3];
 
     float aaf[3];   // float type of aa param
-    int offset;
     int bufferStride;
     int bufferHeight;
 } SangNomData;
@@ -47,15 +46,6 @@ enum SangNomOrderType
     SNOT_SFR_KT,    // single frame rate, keep top field
     SNOT_SFR_KB     // single frame rate, keep bottom field
 };
-
-static inline int VapourSynthFieldBasedToSangNomOrder(int64_t fieldbased)
-{
-    if (fieldbased == 2) // tff
-        return SNOT_SFR_KT;
-    if (fieldbased == 1) // bff
-        return SNOT_SFR_KB;
-    return SNOT_SFR_KT;
-}
 
 enum Buffers
 {
@@ -1562,27 +1552,27 @@ inline void finalizePlane_c<float, float>(float *dstp, const int dstStride, cons
 #ifdef VS_TARGET_CPU_X86
 
 template <typename T, typename IType>
-static inline void sangnom_sse(T *dstp, const int dstStride, const int w, const int h, SangNomData *d, int plane, T *buffers[TOTAL_BUFFERS], IType *bufferLine)
+static inline void sangnom_sse(T *dstp, const int dstStride, const int w, const int h, SangNomData *d, int offset, int plane, T *buffers[TOTAL_BUFFERS], IType *bufferLine)
 {
-    prepareBuffers_sse<T, IType>(dstp + d->offset * dstStride, dstStride, w, h, d->bufferStride, buffers);
+    prepareBuffers_sse<T, IType>(dstp + offset * dstStride, dstStride, w, h, d->bufferStride, buffers);
 
     for (int i = 0; i < TOTAL_BUFFERS; ++i)
         processBuffers_sse(buffers[i], bufferLine, d->bufferStride, d->bufferHeight);
 
-    finalizePlane_sse<T, IType>(dstp + d->offset * dstStride, dstStride, w, h, d->bufferStride, d->aaf[plane], buffers);
+    finalizePlane_sse<T, IType>(dstp + offset * dstStride, dstStride, w, h, d->bufferStride, d->aaf[plane], buffers);
 }
 
 #endif
 
 template <typename T, typename IType>
-static inline void sangnom_c(T *dstp, const int dstStride, const int w, const int h, SangNomData *d, int plane, T *buffers[TOTAL_BUFFERS], IType *bufferLine)
+static inline void sangnom_c(T *dstp, const int dstStride, const int w, const int h, SangNomData *d, int offset, int plane, T *buffers[TOTAL_BUFFERS], IType *bufferLine)
 {
-    prepareBuffers_c<T, IType>(dstp + d->offset * dstStride, dstStride, w, h, d->bufferStride, buffers);
+    prepareBuffers_c<T, IType>(dstp + offset * dstStride, dstStride, w, h, d->bufferStride, buffers);
 
     for (int i = 0; i < TOTAL_BUFFERS; ++i)
         processBuffers_c<T, IType>(buffers[i], bufferLine, d->bufferStride, d->bufferHeight);
 
-    finalizePlane_c<T, IType>(dstp + d->offset * dstStride, dstStride, w, h, d->bufferStride, d->aaf[plane], buffers);
+    finalizePlane_c<T, IType>(dstp + offset * dstStride, dstStride, w, h, d->bufferStride, d->aaf[plane], buffers);
 }
 
 static void VS_CC sangnomInit(VSMap *in, VSMap *out, void **instanceData, VSNode* node, VSCore *core, const VSAPI *vsapi)
@@ -1602,6 +1592,35 @@ static const VSFrameRef *VS_CC sangnomGetFrame(int n, int activationReason, void
     } else if (activationReason == arAllFramesReady) {
 
         auto src = vsapi->getFrameFilter(n, d->node, frameCtx);
+
+        int offset = 42; // Initialise it to shut up a warning.
+
+        if (d->order == SNOT_DFR) {
+            const VSMap *props = vsapi->getFramePropsRO(src);
+            int err;
+
+            int64_t field_based = vsapi->propGetInt(props, "_FieldBased", 0, &err);
+            if (err) {
+                vsapi->setFilterError("SangNom: clip's frames must have the _FieldBased property when order is 0 (double rate output).", frameCtx);
+                vsapi->freeFrame(src);
+                return nullptr;
+            }
+
+            if (field_based == 1) { // bottom field first
+                offset = 1;
+            } else if (field_based == 2) { // top field first
+                offset = 0;
+            } else {
+                vsapi->setFilterError("SangNom: the _FieldBased frame property must be either 1 (bottom field first) or 2 (top field first) when order is 0 (double rate output). Did you forget to invoke DoubleWeave before SangNom?", frameCtx);
+                vsapi->freeFrame(src);
+                return nullptr;
+            }
+        } else if (d->order == SNOT_SFR_KT) {
+            offset = 0;
+        } else if (d->order == SNOT_SFR_KB) {
+            offset = 1;
+        }
+
         //auto dst = vsapi->copyFrame(src, core);
         auto dst = vsapi->newVideoFrame(d->ovi.format, d->ovi.width, d->ovi.height, src, core);
 
@@ -1646,7 +1665,7 @@ static const VSFrameRef *VS_CC sangnomGetFrame(int n, int activationReason, void
             if (d->dh) {
                 // always process the plane if dh=true
                 // copy target field
-                vs_bitblt(dstp + d->offset * vsapi->getStride(dst, plane), vsapi->getStride(dst, plane) * 2,
+                vs_bitblt(dstp + offset * vsapi->getStride(dst, plane), vsapi->getStride(dst, plane) * 2,
                           srcp, vsapi->getStride(src, plane),
                           vsapi->getFrameWidth(dst, plane) * d->vi->format->bytesPerSample, vsapi->getFrameHeight(src, plane));
             } else {
@@ -1656,13 +1675,13 @@ static const VSFrameRef *VS_CC sangnomGetFrame(int n, int activationReason, void
                     continue;
                 }
                 // copy target field
-                vs_bitblt(dstp + d->offset * vsapi->getStride(dst, plane), vsapi->getStride(dst, plane) * 2,
-                          srcp + d->offset * vsapi->getStride(src, plane), vsapi->getStride(src, plane) * 2,
+                vs_bitblt(dstp + offset * vsapi->getStride(dst, plane), vsapi->getStride(dst, plane) * 2,
+                          srcp + offset * vsapi->getStride(src, plane), vsapi->getStride(src, plane) * 2,
                           vsapi->getFrameWidth(dst, plane) * d->vi->format->bytesPerSample, vsapi->getFrameHeight(src, plane) / 2);
             }
 
             // copy the field which can't be interpolated
-            if (d->offset == 0) {
+            if (offset == 0) {
                 // keep top field so the bottom line can't be interpolated
                 // just copy the data from its correspond top field
                 std::memcpy(dstp + (height - 1) * vsapi->getStride(dst, plane),
@@ -1680,21 +1699,21 @@ static const VSFrameRef *VS_CC sangnomGetFrame(int n, int activationReason, void
 
             if (d->vi->format->sampleType == stInteger) {
                 if (d->vi->format->bitsPerSample == 8)
-                    sangnom_sse<uint8_t, int16_t>(dstp, dstStride, width, height, d, plane, reinterpret_cast<uint8_t**>(buffers), reinterpret_cast<int16_t*>(bufferLine));
+                    sangnom_sse<uint8_t, int16_t>(dstp, dstStride, width, height, d, offset, plane, reinterpret_cast<uint8_t**>(buffers), reinterpret_cast<int16_t*>(bufferLine));
                 else
-                    sangnom_sse<uint16_t, int32_t>(reinterpret_cast<uint16_t*>(dstp), dstStride, width, height, d, plane, reinterpret_cast<uint16_t**>(buffers), reinterpret_cast<int32_t*>(bufferLine));
+                    sangnom_sse<uint16_t, int32_t>(reinterpret_cast<uint16_t*>(dstp), dstStride, width, height, d, offset,  plane, reinterpret_cast<uint16_t**>(buffers), reinterpret_cast<int32_t*>(bufferLine));
             } else {
-                sangnom_sse<float, float>(reinterpret_cast<float*>(dstp), dstStride, width, height, d, plane, reinterpret_cast<float**>(buffers), reinterpret_cast<float*>(bufferLine));
+                sangnom_sse<float, float>(reinterpret_cast<float*>(dstp), dstStride, width, height, d, offset, plane, reinterpret_cast<float**>(buffers), reinterpret_cast<float*>(bufferLine));
             }
 #else
 
             if (d->vi->format->sampleType == stInteger) {
                 if (d->vi->format->bitsPerSample == 8)
-                    sangnom_c<uint8_t, int16_t>(dstp, dstStride, width, height, d, plane, reinterpret_cast<uint8_t**>(buffers), reinterpret_cast<int16_t*>(bufferLine));
+                    sangnom_c<uint8_t, int16_t>(dstp, dstStride, width, height, d, offset, plane, reinterpret_cast<uint8_t**>(buffers), reinterpret_cast<int16_t*>(bufferLine));
                 else
-                    sangnom_c<uint16_t, int32_t>(reinterpret_cast<uint16_t*>(dstp), dstStride, width, height, d, plane, reinterpret_cast<uint16_t**>(buffers), reinterpret_cast<int32_t*>(bufferLine));
+                    sangnom_c<uint16_t, int32_t>(reinterpret_cast<uint16_t*>(dstp), dstStride, width, height, d, offset, plane, reinterpret_cast<uint16_t**>(buffers), reinterpret_cast<int32_t*>(bufferLine));
             } else {
-                sangnom_c<float, float>(reinterpret_cast<float*>(dstp), dstStride, width, height, d, plane, reinterpret_cast<float**>(buffers), reinterpret_cast<float*>(bufferLine));
+                sangnom_c<float, float>(reinterpret_cast<float*>(dstp), dstStride, width, height, d, offset, plane, reinterpret_cast<float**>(buffers), reinterpret_cast<float*>(bufferLine));
             }
 
 #endif
@@ -1730,8 +1749,6 @@ static void VS_CC sangnomCreate(const VSMap *in, VSMap *out, void *userData, VSC
             throw std::string("height must be even");
 
         d->order = int64ToIntS(vsapi->propGetInt(in, "order", 0, &err));
-        if (err)
-            d->order = VapourSynthFieldBasedToSangNomOrder(vsapi->propGetInt(in, "_FieldBased", 0, &err));
         if (err)
             d->order = SNOT_SFR_KT;
 
@@ -1779,13 +1796,6 @@ static void VS_CC sangnomCreate(const VSMap *in, VSMap *out, void *userData, VSC
         vsapi->freeNode(d->node);
         vsapi->setError(out, std::string("SangNom: ").append(errorMsg).c_str());
         return;
-    }
-
-    // setup offset for the start line
-    if (d->order == SNOT_DFR) {
-        d->offset = 0;  // keep top field
-    } else {
-        d->offset = d->order - 1;
     }
 
     // tweak aa value for different format
