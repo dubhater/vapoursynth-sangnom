@@ -1,5 +1,5 @@
 project('SangNom', 'cpp',
-        version: '40',
+        version: '41',
         default_options: ['cpp_std=c++14', 'buildtype=release'],
         meson_version: '>=0.46')
 

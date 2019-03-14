@@ -1,3 +1,8 @@
+r41
+    Fix order=0 (double rate output). It was always keeping the top field
+	instead of alternating between top field and bottom field.
+    Add Meson build system.
+r40
 
 r40
     remove param algo and the new algo, always use the original one now.
