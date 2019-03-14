@@ -1815,7 +1815,7 @@ static void VS_CC sangnomCreate(const VSMap *in, VSMap *out, void *userData, VSC
     d->bufferStride = (d->ovi.width + alignment - 1) & ~(alignment - 1);
     d->bufferHeight = (d->ovi.height + 1) >> 1;
 
-    vsapi->createFilter(in, out, "sangnom", sangnomInit, sangnomGetFrame, sangnomFree, fmParallel, 0, d, core);
+    vsapi->createFilter(in, out, "SangNom", sangnomInit, sangnomGetFrame, sangnomFree, fmParallel, 0, d, core);
 }
 
 VS_EXTERNAL_API(void) VapourSynthPluginInit(VSConfigPlugin configFunc, VSRegisterFunction registerFunc, VSPlugin *plugin)
