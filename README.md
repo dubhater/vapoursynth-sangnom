@@ -14,6 +14,11 @@
     make
     make install
 
+Or
+
+    meson build && cd build
+    ninja
+
 *   build on linux
 ***
 
