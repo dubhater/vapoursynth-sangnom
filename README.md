@@ -51,7 +51,7 @@ Or
 ***
 *   order: order of deinterlacing
     *   default: 1 (int)
-        *   0:  double frame rate, must call DoubleWeave() before processing
+        *   0:  double frame rate, must call std.SeparateFields().std.DoubleWeave() before processing
         *   1:  single frame rate, keep top field
         *   2:  single frame rate, keep bottom field
 

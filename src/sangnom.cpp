@@ -42,7 +42,7 @@ typedef struct SangNomData
 
 enum SangNomOrderType
 {
-    SNOT_DFR = 0,   // double frame rate, user must call DoubleWeave() before use this
+    SNOT_DFR = 0,   // double frame rate, user must call std.SeparateFields().std.DoubleWeave() before use this
     SNOT_SFR_KT,    // single frame rate, keep top field
     SNOT_SFR_KB     // single frame rate, keep bottom field
 };

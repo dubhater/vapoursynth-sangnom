@@ -1,6 +1,6 @@
 r41
     Fix order=0 (double rate output). It was always keeping the top field
-	instead of alternating between top field and bottom field.
+    instead of alternating between top field and bottom field.
     Add Meson build system.
 r40
 
