@@ -927,12 +927,12 @@ static inline void processBuffersBlock_sse(float *bufferp, const float *bufferLi
     auto currLineP2 = sse_load_2_to_right_ps<float, false, true>(bufferLine + x);
     auto currLineP3 = sse_load_3_to_right_ps<float, false, true>(bufferLine + x);
 
-    auto sum = _mm_mul_ps(currLineM3, currLineM2);
-    sum = _mm_mul_ps(sum, currLineM1);
-    sum = _mm_mul_ps(sum, currLine);
-    sum = _mm_mul_ps(sum, currLineP1);
-    sum = _mm_mul_ps(sum, currLineP2);
-    sum = _mm_mul_ps(sum, currLineP3);
+    auto sum = _mm_add_ps(currLineM3, currLineM2);
+    sum = _mm_add_ps(sum, currLineM1);
+    sum = _mm_add_ps(sum, currLine);
+    sum = _mm_add_ps(sum, currLineP1);
+    sum = _mm_add_ps(sum, currLineP2);
+    sum = _mm_add_ps(sum, currLineP3);
 
     const auto const_1_16 = _mm_set1_ps(1.0 / 16.0);
 
