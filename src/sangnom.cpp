@@ -619,7 +619,7 @@ inline float absDiff<float>(const float &a, const float &b)
 template <typename T, typename IType>
 static inline IType calculateSangNom(const T &p1, const T &p2, const T &p3)
 {
-    IType sum = p1 * 5 + p2 * 4 - p3;
+    IType sum = p1 * 4 + p2 * 5 - p3;
     return sum / 8;
 }
 
