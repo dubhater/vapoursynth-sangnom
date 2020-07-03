@@ -8,6 +8,7 @@ warnings = [
   '-Wall',
   '-Wextra',
   '-Wshadow',
+  '-Wno-unused-parameter',
 ]
 
 cflags = [
@@ -21,7 +22,7 @@ ldflags = [
 host_cpu_family = host_machine.cpu_family()
 
 if host_cpu_family.startswith('x86')
-  cflags += ['-mfpmath=sse', '-msse2', '-DVS_TARGET_CPU_X86=1']
+  cflags += ['-mfpmath=sse', '-msse2'] #, '-DVS_TARGET_CPU_X86=1']
 endif
 
 
