@@ -1627,7 +1627,9 @@ static const VSFrameRef *VS_CC sangnomGetFrame(int n, int activationReason, void
         /////////////////////////////////////////////////////////////////////////////////////
         void *bufferLine = vs_aligned_malloc<void>(d->bufferStride * d->vi->format->bytesPerSample * (d->vi->format->sampleType == stInteger ? 2 : 1), alignment);               // line buffer used in process buffers
 
-        void *bufferPool = vs_aligned_malloc<void>(d->vi->format->bytesPerSample * d->bufferStride * (d->bufferHeight + 1) * TOTAL_BUFFERS, alignment);
+        size_t bufferPoolSize = d->vi->format->bytesPerSample * d->bufferStride * (d->bufferHeight + 1) * TOTAL_BUFFERS;
+        void *bufferPool = vs_aligned_malloc<void>(bufferPoolSize, alignment);
+        memset(bufferPool, 0, bufferPoolSize);
 
         void *buffers[TOTAL_BUFFERS];   // plane buffers used in all three steps
 
