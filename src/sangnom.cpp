@@ -1625,33 +1625,15 @@ static const VSFrameRef *VS_CC sangnomGetFrame(int n, int activationReason, void
         auto dst = vsapi->newVideoFrame(d->ovi.format, d->ovi.width, d->ovi.height, src, core);
 
         /////////////////////////////////////////////////////////////////////////////////////
-        void *bufferLine;               // line buffer used in process buffers
+        void *bufferLine = vs_aligned_malloc<void>(d->bufferStride * d->vi->format->bytesPerSample * (d->vi->format->sampleType == stInteger ? 2 : 1), alignment);               // line buffer used in process buffers
 
-        void *bufferPool;
+        void *bufferPool = vs_aligned_malloc<void>(d->vi->format->bytesPerSample * d->bufferStride * (d->bufferHeight + 1) * TOTAL_BUFFERS, alignment);
+
         void *buffers[TOTAL_BUFFERS];   // plane buffers used in all three steps
 
-
-        if (d->vi->format->sampleType == stInteger) {
-            if (d->vi->format->bitsPerSample == 8) {
-                bufferLine = vs_aligned_malloc<void>(sizeof(int16_t) * d->bufferStride, alignment);
-                bufferPool = vs_aligned_malloc<void>(sizeof(uint8_t) * d->bufferStride * (d->bufferHeight + 1) * TOTAL_BUFFERS, alignment);
-                // separate bufferpool to multiple pieces
-                for (int i = 0; i < TOTAL_BUFFERS; ++i)
-                    buffers[i] = reinterpret_cast<uint8_t*>(bufferPool) + i * d->bufferStride * (d->bufferHeight + 1);
-            } else {
-                bufferLine = vs_aligned_malloc<void>(sizeof(int32_t) * d->bufferStride, alignment);
-                bufferPool = vs_aligned_malloc<void>(sizeof(uint16_t) * d->bufferStride * (d->bufferHeight + 1) * TOTAL_BUFFERS, alignment);
-                // separate bufferpool to multiple pieces
-                for (int i = 0; i < TOTAL_BUFFERS; ++i)
-                    buffers[i] = reinterpret_cast<uint16_t*>(bufferPool) + i * d->bufferStride * (d->bufferHeight + 1);
-            }
-        } else {
-            bufferLine = vs_aligned_malloc<void>(sizeof(float) * d->bufferStride, alignment);
-            bufferPool = vs_aligned_malloc<void>(sizeof(float) * d->bufferStride * (d->bufferHeight + 1) * TOTAL_BUFFERS, alignment);
-            // separate bufferpool to multiple pieces
-            for (int i = 0; i < TOTAL_BUFFERS; ++i)
-                buffers[i] = reinterpret_cast<float*>(bufferPool) + i * d->bufferStride * (d->bufferHeight + 1);
-        }
+        // separate bufferpool to multiple pieces
+        for (int i = 0; i < TOTAL_BUFFERS; ++i)
+            buffers[i] = reinterpret_cast<uint8_t*>(bufferPool) + i * d->bufferStride * (d->bufferHeight + 1) * d->vi->format->bytesPerSample;
         /////////////////////////////////////////////////////////////////////////////////////
 
         for (int plane = 0; plane < d->vi->format->numPlanes; ++plane) {
