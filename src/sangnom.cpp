@@ -620,7 +620,14 @@ template <typename T, typename IType>
 static inline IType calculateSangNom(const T &p1, const T &p2, const T &p3)
 {
     IType sum = p1 * 4 + p2 * 5 - p3;
-    return sum / 8;
+    return (T)(sum >> 3);
+}
+
+template <>
+inline float calculateSangNom(const float &p1, const float &p2, const float &p3)
+{
+    float sum = p1 * 4 + p2 * 5 - p3;
+    return sum * (float)(1.0 / 8.0);
 }
 
 #ifdef VS_TARGET_CPU_X86
@@ -1441,7 +1448,7 @@ static inline void finalizePlane_c(T *dstp, const int dstStride, const int w, co
 
             ///////////////////////////////////////////////////////////////////////
             // the order of following code is important, don't change them
-            if (buf[4] == minBuf || minBuf >= aaf) {
+            if (buf[4] == minBuf || minBuf > aaf) {
                 dstpn[x] = (currLine + nextLine + 1) >> 1;
             } else if (buf[5] == minBuf) {
                 dstpn[x] = (backwardSangNom1 + backwardSangNom2 + 1) >> 1;
@@ -1520,7 +1527,7 @@ inline void finalizePlane_c<float, float>(float *dstp, const int dstStride, cons
 
             ///////////////////////////////////////////////////////////////////////
             // the order of following code is important, don't change them
-            if (buf[4] == minBuf || minBuf >= aaf) {
+            if (buf[4] == minBuf || minBuf > aaf) {
                 dstpn[x] = (currLine + nextLine) / 2;
             } else if (buf[5] == minBuf) {
                 dstpn[x] = (backwardSangNom1 + backwardSangNom2) / 2;
