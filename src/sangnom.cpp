@@ -930,9 +930,9 @@ static inline void processBuffersBlock_sse(float *bufferp, const float *bufferLi
     auto currLineM2 = sse_load_2_to_left_ps<float, border == BorderMode::LEFT, true>(bufferLine + x);
     auto currLineM1 = sse_load_1_to_left_ps<float, border == BorderMode::LEFT, true>(bufferLine + x);
     auto currLine   = sse_load_ps<float, true>(bufferLine + x);
-    auto currLineP1 = sse_load_1_to_right_ps<float, false, true>(bufferLine + x);
-    auto currLineP2 = sse_load_2_to_right_ps<float, false, true>(bufferLine + x);
-    auto currLineP3 = sse_load_3_to_right_ps<float, false, true>(bufferLine + x);
+    auto currLineP1 = sse_load_1_to_right_ps<float, border == BorderMode::RIGHT, true>(bufferLine + x);
+    auto currLineP2 = sse_load_2_to_right_ps<float, border == BorderMode::RIGHT, true>(bufferLine + x);
+    auto currLineP3 = sse_load_3_to_right_ps<float, border == BorderMode::RIGHT, true>(bufferLine + x);
 
     auto sum = _mm_add_ps(currLineM3, currLineM2);
     sum = _mm_add_ps(sum, currLineM1);
