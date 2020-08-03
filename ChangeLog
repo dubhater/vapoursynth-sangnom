@@ -1,3 +1,10 @@
+r42
+    Fix bugs in the SSE float code
+    Fix small mistake in the scalar code (not used on x86 systems)
+    Fix nondeterministic output due to uninitialised data
+    Make the scalar code produce the same results as the reference SSE code
+r41
+
 r41
     Fix order=0 (double rate output). It was always keeping the top field
     instead of alternating between top field and bottom field.
